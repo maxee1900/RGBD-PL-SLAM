@@ -1,4 +1,4 @@
-RGBD-SLAM with Point and Line Features. This project is developed based on the famous ORB_SLAM2. There are some details to be refined if you hope it works better than the original ORBSLAM2.  
+RGBD-SLAM with Point and Line Features. This project is developed based on the famous ORB_SLAM2. There are some details to be refined if you hope it works better than the original ORB_SLAM2.  
 
 
 Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
