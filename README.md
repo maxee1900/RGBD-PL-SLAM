@@ -6,10 +6,6 @@ This project is developed based on the famous ORB_SLAM2. There are some details 
 Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
 
 
- 更多资料请见Wiki和附件
-- Wiki 参考博客
-- 附件 参考论文、ppt以及程序
-
 ## ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 
