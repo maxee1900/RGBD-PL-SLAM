@@ -37,16 +37,15 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
         mnTrackReferenceForFrame(0), mnFuseTargetForKF(0), mnBALocalForKF(0), mnBAFixedForKF(0),
         mnLoopQuery(0), mnLoopWords(0), mnRelocQuery(0), mnRelocWords(0), mnBAGlobalForKF(0),
         fx(F.fx), fy(F.fy), cx(F.cx), cy(F.cy), invfx(F.invfx), invfy(F.invfy),
-        mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
-        mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
+        mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), NL(F.NL), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn), mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
+
+        mvKeyLines(F.mvKeylines), mvKeyLinesUn(F.mvKeylinesUn), mvuRightLineStart(F.mvuRightLineStart), mvuRightLineEnd(F.mvuRightLineEnd), mvDepthLineStart(F.mvDepthLineStart), mvDepthLineEnd(F.mvDepthLineEnd), mvKeyLineFunctions(F.mvKeyLineFunctions), mLineDescriptors(F.mLdesc.clone()),
+
         mBowVec(F.mBowVec), mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels), mfScaleFactor(F.mfScaleFactor),
         mfLogScaleFactor(F.mfLogScaleFactor), mvScaleFactors(F.mvScaleFactors), mvLevelSigma2(F.mvLevelSigma2),
         mvInvLevelSigma2(F.mvInvLevelSigma2), mnMinX(F.mnMinX), mnMinY(F.mnMinY), mnMaxX(F.mnMaxX),
-        mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mpKeyFrameDB(pKFDB),
-        mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
-        mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap),
-        NL(F.NL), mvKeyLines(F.mvKeylinesUn), mvKeyLineFunctions(F.mvKeyLineFunctions), mLineDescriptors(F.mLdesc),
-        mvpMapLines(F.mvpMapLines)
+        mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mvpMapLines(F.mvpMapLines), mpKeyFrameDB(pKFDB), mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
+        mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap)
 {
     mnId=nNextId++;
 
@@ -55,7 +54,7 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     {
         mGrid[i].resize(mnGridRows);
         for(int j=0; j<mnGridRows; j++)
-            mGrid[i][j] = F.mGrid[i][j];
+            mGrid[i][j] = F.mGrid[i][j];  //mGrid[][]所存放的元素是一个vector啊
     }
 
     SetPose(F.mTcw);
@@ -186,7 +185,7 @@ void KeyFrame::UpdateBestCovisibles() //未改
 
     // 权重从大到小
     mvpOrderedConnectedKeyFrames = vector<KeyFrame*>(lKFs.begin(),lKFs.end());
-    //list转换为vector
+    // list转换为vector
     mvOrderedWeights = vector<int>(lWs.begin(), lWs.end());
 }
 
@@ -222,6 +221,7 @@ vector<KeyFrame*> KeyFrame::GetVectorCovisibleKeyFrames()
  * @return 连接的关键帧
  */
 vector<KeyFrame*> KeyFrame::GetBestCovisibilityKeyFrames(const int &N)
+
 {
     unique_lock<mutex> lock(mMutexConnections);
     if((int)mvpOrderedConnectedKeyFrames.size()<N)
@@ -282,6 +282,14 @@ void KeyFrame::AddMapPoint(MapPoint *pMP, const size_t &idx)
     mvpMapPoints[idx]=pMP;  //修改关键帧的地图点列表即可
 }
 
+//// line
+void KeyFrame::AddMapLine(MapLine *pML, const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx]=pML;
+}
+
+
 void KeyFrame::EraseMapPointMatch(const size_t &idx)  //传入参数只有该地图点在关键帧上的索引
 {
     unique_lock<mutex> lock(mMutexFeatures);
@@ -296,9 +304,30 @@ void KeyFrame::EraseMapPointMatch(MapPoint* pMP)  //删除关键帧上的对应�
 }
 
 
+//// line
+
+void KeyFrame::EraseMapLineMatch(const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx]= static_cast<MapLine*>(NULL);
+}
+//// line
+void KeyFrame::EraseMapLineMatch(MapLine *pML)
+{
+    int idx = pML->GetIndexInKeyFrame(this);
+    if(idx>=0)
+        mvpMapLines[idx]= static_cast<MapLine*>(NULL);
+}
+
 void KeyFrame::ReplaceMapPointMatch(const size_t &idx, MapPoint* pMP)
 {
     mvpMapPoints[idx]=pMP;
+}
+
+//// line
+void KeyFrame::ReplaceMapLineMatch(const size_t &idx, MapLine *pML)
+{
+    mvpMapLines[idx]=pML;
 }
 
 set<MapPoint*> KeyFrame::GetMapPoints()  //得到关键帧所观测到的地图点
@@ -315,6 +344,23 @@ set<MapPoint*> KeyFrame::GetMapPoints()  //得到关键帧所观测到的地图�
     }
     return s;
 }
+
+//// line
+set<MapLine*> KeyFrame::GetMapLines()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    set<MapLine*> s;
+    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
+    {
+        if(!mvpMapLines[i])
+            continue;
+        MapLine* pML = mvpMapLines[i];
+        if(!pML->isBad())
+            s.insert(pML);
+    }
+    return s;
+}
+
 
 /**
  * @brief 关键帧中，大于等于minObs的MapPoints的数量
@@ -350,6 +396,35 @@ int KeyFrame::TrackedMapPoints(const int &minObs)
     return nPoints;
 }
 
+//// line
+//todo 这个函数写了，但是没有用，因此在TrackedMapPoints用到的地方看是否相应做添加
+int KeyFrame::TrackedMapLines(const int &minObs)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+
+    int nLines = 0;
+    const bool bCheckObs = minObs>0;
+    for(int i=0; i<NL; i++)
+    {
+        MapLine* pML = mvpMapLines[i];
+        if(pML)
+        {
+            if(!pML->isBad())
+            {
+                if(bCheckObs)
+                {
+                    //该MapLine是一个高质量的MapLine
+                    if(mvpMapLines[i]->Observations()>=minObs)
+                        nLines++;
+                } else
+                    nLines++;
+            }
+        }
+    }
+    return nLines;
+}
+
+
 /**
  * @brief Get MapPoint Matches
  *
@@ -361,11 +436,27 @@ vector<MapPoint*> KeyFrame::GetMapPointMatches()  //即该该帧上的地图点�
     return mvpMapPoints;
 }
 
+//// line
+vector<MapLine*> KeyFrame::GetMapLineMatches()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mvpMapLines;
+}
+
+
 MapPoint* KeyFrame::GetMapPoint(const size_t &idx)
 {
     unique_lock<mutex> lock(mMutexFeatures);
     return mvpMapPoints[idx];
 }
+
+//// line
+MapLine* KeyFrame::GetMapLine(const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mvpMapLines[idx];
+}
+
 
 /**
  * @brief 更新图的连接， 这个函数很重要！
@@ -377,7 +468,7 @@ MapPoint* KeyFrame::GetMapPoint(const size_t &idx)
  *    更新完covisibility图之后，如果没有初始化过，则初始化为连接权重最大的边（与其它关键帧共视程度最高的那个关键帧），类似于最大生成树
  */
  // 这个更新连接的函数跟ORBSLAM中一致，但是考虑到线也属于观测，
- // todo 我们是不是有必要把线的观测也加进去一起来更新关键帧之间的连接
+ // todo 我们是不是有必要把线的观测也加进去一起来更新关键帧之间的连接，我觉得尤其是针对弱纹理场景下这要做是非常有必要的， 暂时我未改
 void KeyFrame::UpdateConnections()
 {
     // 在没有执行这个函数前，关键帧只和MapPoints之间有连接关系，这个函数可以更新关键帧之间的连接关系
@@ -495,6 +586,8 @@ void KeyFrame::UpdateConnections()
     }
 }
 
+
+
 void KeyFrame::AddChild(KeyFrame *pKF)
 {
     unique_lock<mutex> lockCon(mMutexConnections);
@@ -569,6 +662,8 @@ void KeyFrame::SetErase()
     }
 }
 
+
+// todo_！ 这个函数中涉及到了地图点的操作，因此要把对应的地图线的操作加进去！
 void KeyFrame::SetBadFlag() //未改
 {   
     {
@@ -588,6 +683,10 @@ void KeyFrame::SetBadFlag() //未改
     for(size_t i=0; i<mvpMapPoints.size(); i++)
         if(mvpMapPoints[i])
             mvpMapPoints[i]->EraseObservation(this);// 让与自己有联系的MapPoint删除与自己的联系
+    for(size_t i=0; i<mvpMapLines.size(); ++i)
+        if(mvpMapLines[i])
+            mvpMapLines[i]->EraseObservation(this);
+
 
     {
         unique_lock<mutex> lock(mMutexConnections);
@@ -676,7 +775,6 @@ void KeyFrame::SetBadFlag() //未改
         mbBad = true;
     }
 
-
     mpMap->EraseKeyFrame(this);  //地图和DataBase中删除该关键帧
     mpKeyFrameDB->erase(this);
 }
@@ -705,7 +803,7 @@ void KeyFrame::EraseConnection(KeyFrame* pKF)
 
 // r为边长（半径）
 // 这个函数是得到关键帧上某一位置附近领域的特征点，返回特征点的索引。
-/// 针对线特征，暂时没有增加类似的函数，不知道有没有影响
+/// 针对线特征，暂时没有增加类似的函数，不知道有没有影响  todo_  检查
 vector<size_t> KeyFrame::GetFeaturesInArea(const float &x, const float &y, const float &r) const  //@@
 {
     vector<size_t> vIndices;
@@ -749,6 +847,37 @@ vector<size_t> KeyFrame::GetFeaturesInArea(const float &x, const float &y, const
     return vIndices;
 }
 
+
+//// --line-- 类比上面的函数，这里写一个得到某一个领域候选特征线的函数，这里和Frame类的中这个函数同
+// x y是像素坐标
+// todo! 我只是简单的计算点到直线的距离从而找出点附近的线特征，想想要不要修改
+// 这个函数写的还行 不改好像也行的
+vector<size_t> KeyFrame::GetLineFeaturesInArea(const float &x, const float &y, const float &r) const
+{
+    vector<size_t> vIndices;  //存放特征线的索引号
+
+    vIndices.reserve(NL);
+
+//    vector<KeyLine> vkl = mvKeyLinesUn;
+    vector<Vector3d> vlineFun = mvKeyLineFunctions;
+
+    for(size_t i=0; i<vlineFun.size(); i++)
+    {
+        Vector3d p(x, y, 1);
+        double dist = p.dot(vlineFun[i]);  //点到直线的距离
+
+        if(dist > r)
+            continue;
+        else
+            vIndices.push_back(i);
+    }
+
+    return vIndices;
+}
+
+
+
+// 像素坐标是否在关键帧的图像内，加入线同样适用
 bool KeyFrame::IsInImage(const float &x, const float &y) const
 {
     return (x>=mnMinX && x<mnMaxX && y>=mnMinY && y<mnMaxY);
@@ -769,7 +898,7 @@ cv::Mat KeyFrame::UnprojectStereo(int i)
         // mvDepth对应的校正前的特征点，因此这里对校正前特征点反投影
         // 可在Frame::UnprojectStereo中却是对校正后的特征点mvKeysUn反投影
         // 在ComputeStereoMatches函数中应该对校正后的特征点求深度？？ (wubo???)
-        // TODO 我也存在这样的疑问
+        // TODO 我也存在这样的疑问 测试 这里我觉得应该用去畸变后的坐标mvKeysUn
         const float u = mvKeys[i].pt.x; //有畸变的坐标
         const float v = mvKeys[i].pt.y;
         const float x = (u-cx)*z*invfx;
@@ -786,11 +915,77 @@ cv::Mat KeyFrame::UnprojectStereo(int i)
         return cv::Mat();
 }
 
+
+/**
+* @brief Backprojects a keyLineStartPoint (if stereo/depth info available) into 3D world coordinates.
+* @param  i 第i个keyLine
+* @return   3D点（相对于世界坐标系）
+*/
+cv::Mat KeyFrame::UnprojectStereoLineStart(int i)
+{
+    const float z = mvDepthLineStart[i];
+    if(z>0)
+    {
+        // 由2维图像反投影到相机坐标系
+        // mvDepth是在ComputeStereoMatches函数中求取的
+        // mvDepth对应的校正前的特征点，因此这里对校正前特征点反投影
+        // 可在Frame::UnprojectStereo中却是对校正后的特征点mvKeysUn反投影
+        // 在ComputeStereoMatches函数中应该对校正后的特征点求深度？？ (wubo???)
+        const float u = mvKeyLinesUn[i].startPointX;
+        const float v = mvKeyLinesUn[i].startPointY;
+        const float x = (u-cx)*z*invfx;
+        const float y = (v-cy)*z*invfy;
+        cv::Mat x3Dc = (cv::Mat_<float>(3,1) << x, y, z);
+
+        unique_lock<mutex> lock(mMutexPose);
+        // 由相机坐标系转换到世界坐标系
+        // Twc为相机坐标系到世界坐标系的变换矩阵
+        // Twc.rosRange(0,3).colRange(0,3)取Twc矩阵的前3行与前3列
+        return Twc.rowRange(0,3).colRange(0,3)*x3Dc+Twc.rowRange(0,3).col(3);
+    }
+    else
+        return cv::Mat();
+}
+
+/**
+* @brief Backprojects a keyLineEndPoint (if stereo/depth info available) into 3D world coordinates.
+* @param  i 第i个keyLine
+* @return   3D点（相对于世界坐标系）
+*/
+cv::Mat KeyFrame::UnprojectStereoLineEnd(int i)
+{
+    const float z = mvDepthLineEnd[i];
+    if(z>0)
+    {
+        // 由2维图像反投影到相机坐标系
+        // mvDepth是在ComputeStereoMatches函数中求取的
+        // mvDepth对应的校正前的特征点，因此这里对校正前特征点反投影
+        // 可在Frame::UnprojectStereo中却是对校正后的特征点mvKeysUn反投影
+        // 在ComputeStereoMatches函数中应该对校正后的特征点求深度？？ (wubo???)
+        const float u = mvKeyLinesUn[i].endPointX;
+        const float v = mvKeyLinesUn[i].endPointY;
+        const float x = (u-cx)*z*invfx;
+        const float y = (v-cy)*z*invfy;
+        cv::Mat x3Dc = (cv::Mat_<float>(3,1) << x, y, z);
+
+        unique_lock<mutex> lock(mMutexPose);
+        // 由相机坐标系转换到世界坐标系
+        // Twc为相机坐标系到世界坐标系的变换矩阵
+        // Twc.rosRange(0,3).colRange(0,3)取Twc矩阵的前3行与前3列
+        return Twc.rowRange(0,3).colRange(0,3)*x3Dc+Twc.rowRange(0,3).col(3);
+    }
+    else
+        return cv::Mat();
+}
+
+
 /**
  * @brief 评估当前关键帧场景深度，q=2表示中值
  * @param q q=2
  * @return Median Depth
  */
+// 这里的场景深度是经过点特征计算出来的，是不是需要把线特征也考虑进去呢
+
 float KeyFrame::ComputeSceneMedianDepth(const int q)  // Compute Scene Depth (q=2 median). Used in monocular.
 {
     vector<MapPoint*> vpMapPoints;
@@ -821,87 +1016,6 @@ float KeyFrame::ComputeSceneMedianDepth(const int q)  // Compute Scene Depth (q=
     sort(vDepths.begin(),vDepths.end());
 
     return vDepths[(vDepths.size()-1)/q];
-}
-
-
-//// -------line---------------------------------------------------
-
-//针对自己添加的MapLine相关的函数
-void KeyFrame::AddMapLine(MapLine *pML, const size_t &idx)
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-    mvpMapLines[idx]=pML;
-}
-
-void KeyFrame::EraseMapLineMatch(const size_t &idx)
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-    mvpMapLines[idx]= static_cast<MapLine*>(NULL);
-}
-
-void KeyFrame::EraseMapLineMatch(MapLine *pML)
-{
-    int idx = pML->GetIndexInKeyFrame(this);
-    if(idx>=0)
-        mvpMapLines[idx]= static_cast<MapLine*>(NULL);
-}
-
-void KeyFrame::ReplaceMapLineMatch(const size_t &idx, MapLine *pML)
-{
-    mvpMapLines[idx]=pML;
-}
-
-set<MapLine*> KeyFrame::GetMapLines()
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-    set<MapLine*> s;
-    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
-    {
-        if(!mvpMapLines[i])
-            continue;
-        MapLine* pML = mvpMapLines[i];
-        if(!pML->isBad())
-            s.insert(pML);
-    }
-    return s;
-}
-
-vector<MapLine*> KeyFrame::GetMapLineMatches()
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-    return mvpMapLines;
-}
-
-int KeyFrame::TrackedMapLines(const int &minObs)
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-
-    int nLines = 0;
-    const bool bCheckObs = minObs>0;
-    for(int i=0; i<NL; i++)
-    {
-        MapLine* pML = mvpMapLines[i];
-        if(pML)
-        {
-            if(!pML->isBad())
-            {
-                if(bCheckObs)
-                {
-                    //该MapLine是一个高质量的MapLine
-                    if(mvpMapLines[i]->Observations()>=minObs)
-                        nLines++;
-                } else
-                    nLines++;
-            }
-        }
-    }
-    return nLines;
-}
-
-MapLine* KeyFrame::GetMapLine(const size_t &idx)
-{
-    unique_lock<mutex> lock(mMutexFeatures);
-    return mvpMapLines[idx];
 }
 
 

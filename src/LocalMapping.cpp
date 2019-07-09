@@ -28,7 +28,7 @@
 namespace ORB_SLAM2
 {
 
-LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
+LocalMapping::LocalMapping(Map *pMap, const bool &bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
 {
@@ -44,7 +44,7 @@ void LocalMapping::SetTracker(Tracking *pTracker)
     mpTracker=pTracker;
 }
 
-void LocalMapping::Run()
+void LocalMapping::Run()  // 这是主函数
 {
 
     mbFinished = false;
@@ -83,8 +83,8 @@ void LocalMapping::Run()
 //            chrono::steady_clock::time_point t3 = chrono::steady_clock::now();
 //            MapPointCulling();
 //            MapLineCulling();
-            thread threadCullingPoint(&LocalMapping::MapPointCulling(), this);
-            thread threadCullingLine(&LocalMapping::MapLineCulling(), this);
+            thread threadCullingPoint(&LocalMapping::MapPointCulling, this);
+            thread threadCullingLine(&LocalMapping::MapLineCulling, this);
             threadCullingPoint.join();
             threadCullingLine.join();
 //            chrono::steady_clock::time_point t4 = chrono::steady_clock::now();
@@ -124,7 +124,7 @@ void LocalMapping::Run()
                 // Find more matches in neighbor keyframes and fuse point duplications
                 // 检查并融合当前关键帧与相邻帧（两级相邻）重复的MapPoints   和MapLines?
                 //@@ 注意这里当前关键帧和两级相邻的概念！　
-                SearchInNeighbors();  //todo 这个函数有么有重写
+                SearchInNeighbors();  //todo 这个地方要不要加上SearchLineInNeighbors
             }
 
             mbAbortBA = false;  //中止BA
@@ -137,33 +137,31 @@ void LocalMapping::Run()
                 {
 //                    ofstream file4("LocalBATime.txt", ios::app);
 //                    chrono::steady_clock::time_point t7 = chrono::steady_clock::now();
-                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);   ///包含了线特征的BA
+                    Optimizer::LocalBundleAdjustmentWithLine(mpCurrentKeyFrame, &mbAbortBA, mpMap);   ///包含了线特征的BA
 //                    chrono::steady_clock::time_point t8 = chrono::steady_clock::now();
 //                    chrono::duration<double> time_used4 = chrono::duration_cast<chrono::duration<double>>(t8-t7);
 //                    cout << "LocalBA time: " << time_used4.count() << endl;
 //                    file4 << time_used4.count() << endl;
 //                    file4.close();
 
-                }
-
-
-                // Check redundant local Keyframes
-                // VI-E local keyframes culling
-                // 检测并剔除当前帧相邻的关键帧中冗余的关键帧
-                // 剔除的标准是：该关键帧的90%的MapPoints可以被其它关键帧观测到
-                // trick! 
-                // Tracking中先把关键帧交给LocalMapping线程
-                // 并且在Tracking中InsertKeyFrame函数的条件比较松，交给LocalMapping线程的关键帧会比较密
-                // 在这里再删除冗余的关键帧
+                    // Check redundant local Keyframes
+                    // VI-E local keyframes culling
+                    // 检测并剔除当前帧相邻的关键帧中冗余的关键帧
+                    // 剔除的标准是：该关键帧的90%的MapPoints可以被其它关键帧观测到
+                    // trick!
+                    // Tracking中先把关键帧交给LocalMapping线程
+                    // 并且在Tracking中InsertKeyFrame函数的条件比较松，交给LocalMapping线程的关键帧会比较密
+                    // 在这里再删除冗余的关键帧
 //                ofstream file5("KFCullingTime.txt",ios::app);
 //                chrono::steady_clock::time_point t9 = chrono::steady_clock::now();
-                KeyFrameCulling();
+                    KeyFrameCulling();
 //                chrono::steady_clock::time_point t10 = chrono::steady_clock::now();
 //                chrono::duration<double> time_used5 = chrono::duration_cast<chrono::duration<double>>(t10-t9);
 //                cout << "CullKF time: " << time_used5.count() << endl;
 //                file5 << time_used5.count() << endl;
 //                file5.close();
 
+                }
             }
 
             // 将当前帧加入到闭环检测队列中,说明当前帧已经是地图中的关键帧了
@@ -259,11 +257,13 @@ void LocalMapping::ProcessNewKeyFrame()
         MapPoint* pMP = vpMapPointMatches[i];
         if(pMP)
         {
-            if(!pMP->isBad())
+            if(!pMP->isBad()) //todo_ 详细思考这段代码的逻辑，很重要！暂时先按ORB中来仿写
             {
                 // 非当前帧生成的MapPoints
 				// 为当前帧在tracking过程跟踪到的MapPoints更新属性
-                if(!pMP->IsInKeyFrame(mpCurrentKeyFrame)) //该地图点的观测mObservations中没有当前关键帧。这些点是不会经历Culling的
+                if(!pMP->IsInKeyFrame(mpCurrentKeyFrame))
+                    //该地图点的观测mObservations中没有当前关键帧。这些点是不会经历Culling的
+                    ///该地图点的观测中没有当前关键帧，说明该地图点只是和当前关键帧上的特征点进行了匹配，接下来，要进行关联，好更新该地图点的属性。这些地图点是已有的不需要进行Culling
                 {
                     // 添加观测
                     pMP->AddObservation(mpCurrentKeyFrame, i); //i为该地图点在当前帧上的索引
@@ -272,17 +272,14 @@ void LocalMapping::ProcessNewKeyFrame()
                     // 加入关键帧后，更新3d点的最佳描述子
                     pMP->ComputeDistinctiveDescriptors();  //更新地图点的描述子
                 }
-                else // this can only happen for new stereo points inserted by the Tracking。 @@  这一句还是不理解，有没有可能出错？
+                else /// this can only happen for new stereo points inserted by the Tracking. 在Tracking::CreateNewKeyFrame()创建了地图点并更新了地图点的观测，这里如果地图点的观测中有当前关键帧，说明这个地图点是在CreateNewKeyFrame()中生成的，这是双目的特点，因此这些点是新生成的需要进行Culling
                 {
                     // 当前帧生成的MapPoints
-                    // 将双目或RGBD跟踪过程中新插入的MapPoints放入mlpRecentAddedMapPoints，等待检查
-                    // pMP->IsInKeyFrame(mpCurrentKeyFrame)为真，即当前关键帧在地图点的观测中
-                    //todo 双目追踪插入的关键点为什么满足上述条件
+                    // 将双目或RGBD跟踪过程中新插入的MapPoints放入mlpRecentAddedMapPoints，等待检查//todo_ 双目追踪插入的关键点为什么满足上述条件
                     // CreateNewMapPoints函数中通过三角化也会生成MapPoints
                     // 这些MapPoints都会经过MapPointCulling函数的检验
                     mlpRecentAddedMapPoints.push_back(pMP);
 
-                    //todo 这些pMP是怎么生成的？
                 }
             }
         }
@@ -306,7 +303,8 @@ void LocalMapping::ProcessNewKeyFrame()
                     pML->AddObservation(mpCurrentKeyFrame, i);  //添加观测
                     pML->UpdateAverageDir();    //更新观测方向
                     pML->ComputeDistinctiveDescriptors();
-                } else
+                }
+                else
                 {
                     mlpRecentAddedMapLines.push_back(pML);
                 }
@@ -317,7 +315,7 @@ void LocalMapping::ProcessNewKeyFrame()
 
     // Update links in the Covisibility Graph
     // 步骤4：更新关键帧间的连接关系，Covisibility图和Essential图(tree)
-    mpCurrentKeyFrame->UpdateConnections(); //此处与MapPoint有关，暂时不修改。（lan）
+    mpCurrentKeyFrame->UpdateConnections(); //此处只与MapPoint有关，暂时不修改。（lan）todo
 
     // Insert Keyframe in Map
     // 步骤5：将该关键帧插入到地图中
@@ -327,7 +325,7 @@ void LocalMapping::ProcessNewKeyFrame()
 
 /**
  * @brief 剔除ProcessNewKeyFrame和CreateNewMapPoints函数中引入的质量不好的MapPoints
- * 有个问题：ProcessNewKeyFrame函数中有没有引入地图点？ 我想可能是在添加关键帧的时候把关键帧上匹配的地图点也带了进来
+ *
  *
  * @see VI-B recent map points culling
  */
@@ -341,7 +339,7 @@ void LocalMapping::MapPointCulling()
     if(mbMonocular)
         nThObs = 2;
     else
-        nThObs = 3;
+        nThObs = 3;  //RGBD这个参数为3，地图点的观测小于等于3就剔除
     const int cnThObs = nThObs;
 	
 	// 遍历等待检查的MapPoints,遍历最近添加的点
@@ -406,7 +404,7 @@ void LocalMapping::MapLineCulling()
             // step1: 将已经是坏的MapLine从检查链中删除
             lit = mlpRecentAddedMapLines.erase(lit);
         }
-        else if(pML->GetFoundRatio()<0.25f)
+        else if(pML->GetFoundRatio()<0.25f)  //这个参数也没改
         {
             pML->SetBadFlag();
             lit = mlpRecentAddedMapLines.erase(lit);
@@ -430,13 +428,15 @@ void LocalMapping::MapLineCulling()
 void LocalMapping::CreateNewMapPoints()  ///该函数相当重要，思考RGBD生成地图点的方式
 {
     // Retrieve neighbor keyframes in covisibility graph
-    int nn = 10;
+    int nn = 10;   //RGBD参数
     if(mbMonocular)
         nn=20;
-    // 步骤1：在当前关键帧的共视关键帧中找到共视程度最高的nn帧相邻帧vpNeighKFs
-    const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);  //好几个函数都会有这样的操作，得到该关键帧的相邻关键帧
 
-    ORBmatcher matcher(0.6,false);  //todo check第二个参数
+    // 步骤1：在当前关键帧的共视关键帧中找到共视程度最高的nn帧相邻帧vpNeighKFs
+    const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);  //得到最佳共视关键帧
+
+    ORBmatcher matcher(0.6,false);  //todo_ check第二个参数 这里不检查旋转一致性
+    // :第二个参数为检查方向吗，所谓的旋转一致性，检查的话会看旋转角度是否为前三大主要的旋转角区间
 
     cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
     cv::Mat Rwc1 = Rcw1.t();
@@ -480,16 +480,16 @@ void LocalMapping::CreateNewMapPoints()  ///该函数相当重要，思考RGBD�
         if(!mbMonocular)
         {
             /// 如果是立体相机，关键帧间距太小时不生成3D点
-            if(baseline<pKF2->mb) //todo 两关键帧之间的相机位移小于关键帧的基线baseline时跳过，这里这个参数可以修改
+            if(baseline<pKF2->mb) //todo_ 两关键帧之间的相机位移小于关键帧的基线baseline时跳过，这里这个参数可以修改
             continue;
         }
-        else
+        else  //单目相机
         {
             // 邻接关键帧的场景深度中值 //可以理解为该关键帧中地图点的平均深度
             const float medianDepthKF2 = pKF2->ComputeSceneMedianDepth(2);
             // baseline与景深的比例
             const float ratioBaselineDepth = baseline/medianDepthKF2;
-            // 如果地图点距离帧特别远(比例特别小)，那么不考虑该帧，不生成3D点
+            // 如果地图点距离帧特别远(比例特别小)，那么不考虑该帧，不生成3D点，也可理解为baseline太小不生成3D点
             if(ratioBaselineDepth<0.01)
                 continue;
         }
@@ -501,7 +501,7 @@ void LocalMapping::CreateNewMapPoints()  ///该函数相当重要，思考RGBD�
         // Search matches that fullfil epipolar constraint
         // 步骤5：通过极线约束限制匹配时的搜索范围，进行特征点匹配
         vector<pair<size_t,size_t> > vMatchedIndices;
-        matcher.SearchForTriangulation(mpCurrentKeyFrame,pKF2,F12,vMatchedIndices,false); //这个函数是很高级的
+        matcher.SearchForTriangulation(mpCurrentKeyFrame,pKF2,F12,vMatchedIndices,false); //两个关键帧之间找匹配
 
         cv::Mat Rcw2 = pKF2->GetRotation();
         cv::Mat Rwc2 = Rcw2.t();
@@ -544,13 +544,14 @@ void LocalMapping::CreateNewMapPoints()  ///该函数相当重要，思考RGBD�
 
             // Check parallax between rays
             // 步骤6.2：利用匹配点反投影得到视差角
-            // 特征点反投影
+            // 特征点反投影 这两个是归一化坐标
             cv::Mat xn1 = (cv::Mat_<float>(3,1) << (kp1.pt.x-cx1)*invfx1, (kp1.pt.y-cy1)*invfy1, 1.0);
             cv::Mat xn2 = (cv::Mat_<float>(3,1) << (kp2.pt.x-cx2)*invfx2, (kp2.pt.y-cy2)*invfy2, 1.0);
 
             // 由相机坐标系转到世界坐标系，得到视差角余弦值
             cv::Mat ray1 = Rwc1*xn1;  //注意这里没有twc1
             cv::Mat ray2 = Rwc2*xn2;
+            assert(cv::norm(ray1)*cv::norm(ray2) != 0);
             const float cosParallaxRays = ray1.dot(ray2)/(cv::norm(ray1)*cv::norm(ray2));
 
             // 加1是为了让cosParallaxStereo随便初始化为一个很大的值
@@ -732,7 +733,10 @@ void LocalMapping::CreateNewMapPoints()  ///该函数相当重要，思考RGBD�
     }
 }
 
+
 //// ********************第一种：三角化端点生成线，误差较大**********************
+//// ********************这个函数是最难写的***********************************
+
 void LocalMapping::CreateNewMapLines1()
 {
     // Retrieve neighbor keyframes in covisibility graph
@@ -807,7 +811,7 @@ void LocalMapping::CreateNewMapLines1()
         // Search matches that fulfill epipolar constraint
         // step5：通过极线约束限制匹配时的搜索单位，进行特征点匹配
         vector<pair<size_t, size_t>> vMatchedIndices;
-        lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices);
+        lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices, false);
 
         cv::Mat Rcw2 = pKF2->GetRotation();
         cv::Mat Rwc2 = Rcw2.t();
@@ -1004,7 +1008,6 @@ void LocalMapping::CreateNewMapLines1()
     }
 
 }
-//// ************************done**********************************
 
 
 //// ********************第二种：通过极平面生成线**********************
@@ -1072,6 +1075,7 @@ void LocalMapping::CreateNewMapLines2()
             // 邻接关键帧的场景深度中值
             const float medianDepthKF2 = pKF2->ComputeSceneMedianDepth(2);
             // baseline 与景深的比例
+            assert(medianDepthKF2 != 0);
             const float ratioBaselineDepth = baseline/medianDepthKF2;
             // 如果特别远（比例特别小），那么不考虑当前邻接的关键帧，不生成3D点
             if(ratioBaselineDepth<0.01)
@@ -1085,7 +1089,7 @@ void LocalMapping::CreateNewMapLines2()
         // Search matches that fulfill epipolar constraint
         // step5：通过极线约束限制匹配时的搜索单位，进行特征点匹配
         vector<pair<size_t, size_t>> vMatchedIndices;
-        lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices);
+        lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices, false);
         // todo 要check上面这个函数实现的有没有问题
 
         // TODO RGBD相机：一种方式是通过深度直接得到点 另一种方式是通过极平面得到点
@@ -1156,6 +1160,8 @@ void LocalMapping::CreateNewMapLines2()
                 continue;
 
             // Euclidean coordinates
+            if(s3D.at<float>(3)==0)
+                cerr << "error: LocalMapping::CreateNewMapLines2(): s3D.at<float>(3)==0 " << endl;
             s3D = s3D.rowRange(0,3)/s3D.at<float>(3);
 
             // 终止点
@@ -1184,12 +1190,14 @@ void LocalMapping::CreateNewMapLines2()
             const float medianDepthKF2 = pKF2->ComputeSceneMedianDepth(2);
             cv::Mat v1 = s3D - Ow1;
             float distance1 = cv::norm(v1);
+            assert(medianDepthKF2 != 0);
             const float ratio1 = distance1/medianDepthKF2;
             if(ratio1 < 0.3)
                 continue;
 
             cv::Mat v2 = s3D - Ow2;
             float distance2 = cv::norm(v2);
+            assert(medianDepthKF2 != 0);
             const float ratio2 = distance2/medianDepthKF2;
             if(ratio2 < 0.3)
                 continue;
@@ -1257,9 +1265,6 @@ void LocalMapping::CreateNewMapLines2()
 
     }
 }
-
-
-//// *************************done*********************************
 
 
 /**
@@ -1362,9 +1367,10 @@ void LocalMapping::SearchInNeighbors()
     }
 
 
-    // 下面的代码，其实也可以穿插到上面和点一起处理，而不是单独再用一个代码块
-#if 1
+#if 1  // 下面的代码，其实也可以穿插到上面和点一起处理，而不是单独再用一个代码块
+
     //=====================MapLine=========仿照上面的思路对线进行相同操作
+
     LSDmatcher lineMatcher;
     vector<MapLine*> vpMapLineMatches = mpCurrentKeyFrame->GetMapLineMatches();     //也就是当前帧的mvpMapLines
     for(vector<KeyFrame*>::iterator vit=vpTargetKFs.begin(), vend=vpTargetKFs.end(); vit!=vend; vit++)
@@ -1426,7 +1432,8 @@ void LocalMapping::SearchInNeighbors()
 }
 
 
-//// --line-- 重写SerachInNeighbors函数，专门检查并融合当前帧与相邻关键帧的重复MapLines
+//// --line--
+/// 重写SerachInNeighbors函数，专门检查并融合当前帧与相邻关键帧的重复MapLines
 /// 这个函数虽然写了，但是没有调用
 /// lan程序中是把这个函数中的操作都加在了原有的SearchInNeighbors函数，因为有很多重复的操作这样避免浪费时间
 /// 也可以写这个函数，然后在调用的时候用多线程并行点和线的融合！！
@@ -1517,8 +1524,6 @@ void LocalMapping::SearchLineInNeighbors()
 
     mpCurrentKeyFrame->UpdateConnections();
 }
-
-
 
 
 /**
@@ -1632,6 +1637,8 @@ void LocalMapping::InterruptBA()
  * 在Covisibility Graph中的关键帧，其90%以上的MapPoints能被其他关键帧（至少3个）观测到，则认为该关键帧为冗余关键帧。
  * @see VI-E Local Keyframe Culling
  */
+ //todo 这里的观测只有MapPoints 是不是也把线的观测给算进去呢
+ // 这个函数仅和线有关，暂时未改后期可以考虑将线的内容加入，把直线也作为一种观测算入90%内
 void LocalMapping::KeyFrameCulling()
 {
     // Check redundant keyframes (only local keyframes)

@@ -37,9 +37,7 @@ namespace ORB_SLAM2
 {
 
     //构造system构造函数的实现
-System::System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor,
-               const bool bUseViewer): mSensor(sensor),mpViewer(static_cast<Viewer*>(NULL)),mbReset(false),mbActivateLocalizationMode(false),  // 构造函数初始化列表
-               mbDeactivateLocalizationMode(false)
+System::System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor, const bool bUseViewer): mSensor(sensor), mbReset(false),mbActivateLocalizationMode(false), mbDeactivateLocalizationMode(false)
 {
     // Output welcome message
     cout << endl <<
@@ -102,7 +100,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //(it will live in the main thread of execution, the one that called this constructor)
     mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                              mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor);
-    //Tracking类的构造含有8个参数,TODO检查这里this指针的含义
+    //Tracking类的构造含有8个参数,TODO_检查这里this指针的含义
 
     ///Initialize the Local Mapping thread and launch
     mpLocalMapper = new LocalMapping(mpMap, mSensor==MONOCULAR);  // 第二个参数为bool
@@ -118,9 +116,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
     if(bUseViewer)
     {
-        mptViewer = new thread(&Viewer::Run, mpViewer);
-        /// --line --
-//        mptViewer = new thread(&Viewer::RunWithLine, mpViewer);
+        mptViewer = new thread(&Viewer::RunWithLine, mpViewer);
+        //todo 这里改为了RunWithLine函数，如果程序不成功要检查这个函数实现的是不是有问题
     }
 
     mpTracker->SetViewer(mpViewer);
@@ -136,63 +133,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLoopCloser->SetLocalMapper(mpLocalMapper);
 
 }  //System构造函数
-
-
-//************************************************************************
-
-//PASS
-cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp)
-{
-    if(mSensor!=STEREO)
-    {
-        cerr << "ERROR: you called TrackStereo but input sensor was not set to STEREO." << endl;
-        exit(-1);
-    }   
-
-    // Check mode change
-    {
-        unique_lock<mutex> lock(mMutexMode);
-        if(mbActivateLocalizationMode)
-        {
-            mpLocalMapper->RequestStop();
-
-            // Wait until Local Mapping has effectively stopped
-            while(!mpLocalMapper->isStopped())
-            {
-                //usleep(1000);
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-
-            mpTracker->InformOnlyTracking(true);// 定位时，只跟踪
-            mbActivateLocalizationMode = false;
-        }
-        if(mbDeactivateLocalizationMode)
-        {
-            mpTracker->InformOnlyTracking(false);
-            mpLocalMapper->Release();
-            mbDeactivateLocalizationMode = false;
-        }
-    }
-
-    // Check reset
-    {
-    unique_lock<mutex> lock(mMutexReset);
-    if(mbReset)
-    {
-        mpTracker->Reset();
-        mbReset = false;
-    }
-    }
-
-    cv::Mat Tcw = mpTracker->GrabImageStereo(imLeft,imRight,timestamp);
-
-    // --add--
-    unique_lock<mutex> lock2(mMutexState);
-    mTrackingState = mpTracker->mState;
-    mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
-    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
-    return Tcw;
-}
 
 
 /**
@@ -250,7 +190,7 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
     return mpTracker->GrabImageRGBD(im,depthmap,timestamp);
     //获取当前帧的Tcw, 世界到相机的位姿。返回类型为 return cv::Mat
 
-#if 0
+#if 0  //这部分代码先跳过，暂时没用，调试的时候可用来看点线追踪的情况
     cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,timestamp);
 
     unique_lock<mutex> lock2(mMutexState);
@@ -264,61 +204,6 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
 
 }
 
-//*******************PASS**************
-cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
-{
-    if(mSensor!=MONOCULAR)
-    {
-        cerr << "ERROR: you called TrackMonocular but input sensor was not set to Monocular." << endl;
-        exit(-1);
-    }
-
-    // Check mode change
-    {
-        unique_lock<mutex> lock(mMutexMode);
-        if(mbActivateLocalizationMode)
-        {
-            mpLocalMapper->RequestStop();
-
-            // Wait until Local Mapping has effectively stopped
-            while(!mpLocalMapper->isStopped())
-            {
-                //usleep(1000);
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-
-            mpTracker->InformOnlyTracking(true);// 定位时，只跟踪
-            mbActivateLocalizationMode = false;// 防止重复执行
-        }
-        if(mbDeactivateLocalizationMode)
-        {
-            mpTracker->InformOnlyTracking(false);
-            mpLocalMapper->Release();
-            mbDeactivateLocalizationMode = false;// 防止重复执行
-        }
-    }
-
-    // Check reset
-    {
-        unique_lock<mutex> lock(mMutexReset);
-        if(mbReset)
-        {
-            mpTracker->Reset();
-            mbReset = false;
-        }
-    }
-
-    cv::Mat Tcw = mpTracker->GrabImageMonocular(im,timestamp);
-
-    unique_lock<mutex> lock2(mMutexState);
-    mTrackingState = mpTracker->mState;
-    mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
-    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
-    mTrackedMapLines = mpTracker->mCurrentFrame.mvpMapLines;   ///仿照KeyPoint，自己添加的
-    mTrackedKeyLines = mpTracker->mCurrentFrame.mvKeylinesUn;  ///仿照KeyPoint，自己添加的
-
-    return Tcw;
-}
 
 //-----------以下三个函数实现类似：完成加锁操作 @加强理解--------
 void System::ActivateLocalizationMode()
@@ -466,86 +351,9 @@ void System::SaveKeyFrameTrajectoryTUM(const string &filename)
 }
 
 
-//*******PASS****************
-void System::SaveTrajectoryKITTI(const string &filename)
-{
-    cout << endl << "Saving camera trajectory to " << filename << " ..." << endl;
-    if(mSensor==MONOCULAR)
-    {
-        cerr << "ERROR: SaveTrajectoryKITTI cannot be used for monocular." << endl;
-        return;
-    }
+//------点云部分，这部分需要加强理解！最终得到点云图，暂时跳过-----------------------------
 
-    vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
-    sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
-
-    // Transform all keyframes so that the first keyframe is at the origin.
-    // After a loop closure the first keyframe might not be at the origin.
-    cv::Mat Two = vpKFs[0]->GetPoseInverse();
-
-    ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-
-    // Frame pose is stored relative to its reference keyframe (which is optimized by BA and pose graph).
-    // We need to get first the keyframe pose and then concatenate the relative transformation.
-    // Frames not localized (tracking failure) are not saved.
-
-    // For each frame we have a reference keyframe (lRit), the timestamp (lT) and a flag
-    // which is true when tracking failed (lbL).
-    list<ORB_SLAM2::KeyFrame*>::iterator lRit = mpTracker->mlpReferences.begin();
-    list<double>::iterator lT = mpTracker->mlFrameTimes.begin();
-    for(list<cv::Mat>::iterator lit=mpTracker->mlRelativeFramePoses.begin(), lend=mpTracker->mlRelativeFramePoses.end();lit!=lend;lit++, lRit++, lT++)
-    {
-        ORB_SLAM2::KeyFrame* pKF = *lRit;
-
-        cv::Mat Trw = cv::Mat::eye(4,4,CV_32F);
-
-        while(pKF->isBad())
-        {
-          //  cout << "bad parent" << endl;
-            Trw = Trw*pKF->mTcp;
-            pKF = pKF->GetParent();
-        }
-
-        Trw = Trw*pKF->GetPose()*Two;
-
-        cv::Mat Tcw = (*lit)*Trw;
-        cv::Mat Rwc = Tcw.rowRange(0,3).colRange(0,3).t();
-        cv::Mat twc = -Rwc*Tcw.rowRange(0,3).col(3);
-
-        f << setprecision(9) << Rwc.at<float>(0,0) << " " << Rwc.at<float>(0,1)  << " " << Rwc.at<float>(0,2) << " "  << twc.at<float>(0) << " " <<
-             Rwc.at<float>(1,0) << " " << Rwc.at<float>(1,1)  << " " << Rwc.at<float>(1,2) << " "  << twc.at<float>(1) << " " <<
-             Rwc.at<float>(2,0) << " " << Rwc.at<float>(2,1)  << " " << Rwc.at<float>(2,2) << " "  << twc.at<float>(2) << endl;
-    }
-    f.close();
-    cout << endl << "trajectory saved!" << endl;
-}
-
-//*****代码缺省了一部分****
 /*
-
-int System::GetTrackingState()
-{
-    unique_lock<mutex> lock(mMutexState);
-    return mTrackingState;
-}
-
-vector<MapPoint*> System::GetTrackedMapPoints()
-{
-    unique_lock<mutex> lock(mMutexState);
-    return mTrackedMapPoints;
-}
-
-vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
-{
-    unique_lock<mutex> lock(mMutexState);
-    return mTrackedKeyPointsUn;
-}
-
- */
-
-//--------------------------点云部分，这部分需要加强理解！最终得到点云图----------------------
 
 void System::SavePointCloud(const string &filename)
 {
@@ -587,47 +395,46 @@ void System::SavePointCloud(const string &filename)
 
 void System::ShowPointCloud()
 {
-//    typedef pcl::PointXYZ PointT;
-//    typedef pcl::PointCloud<PointT> pointCloud;
-//
-//    vector<MapPoint*> vpMPs = mpMap->GetAllMapPoints();
-//    vector<MapLine*> vpMLs = mpMap->GetAllMapLines();
+    typedef pcl::PointXYZ PointT;
+    typedef pcl::PointCloud<PointT> pointCloud;
 
-//    pointCloud::Ptr cloud(new pointCloud);
-//    cloud->points.resize(vpMPs.size());
-//    for(size_t i=0; i<cloud->size(); i++)
-//    {
-//        cv::Mat pos = vpMPs[i]->GetWorldPos();
-//        cloud->points[i].x = pos.at<float>(0);
-//        cloud->points[i].y = pos.at<float>(1);
-//        cloud->points[i].z = pos.at<float>(2);
-//    }
-//
-//    // 显示点云
-//    pcl::visualization::PCLVisualizer *p(new pcl::visualization::PCLVisualizer("display the 3Dpoints"));
-//    p->addPointCloud(cloud);
-//    p->addCoordinateSystem();
-//    p->setBackgroundColor(0.19, 0.19, 0.19);
-//
-//    //-- 将线段的3D端点定义为点,然后划线
-//    PointT p0, p1;
-//    stringstream s1;
-//    for(size_t i=0; i<vpMLs.size(); i++)
-//    {
-//        Vector6d pos = vpMLs[i]->GetWorldPos();
-//        s1 << i;
-//        p0.x = pos(0);
-//        p0.y = pos(1);
-//        p0.z = pos(2);
-//        p1.x = pos(3);
-//        p1.y = pos(4);
-//        p1.z = pos(5);
-//        p->addLine(p0, p1, s1.str());
-//    }
-//
-//    p->spin();
+    vector<MapPoint*> vpMPs = mpMap->GetAllMapPoints();
+    vector<MapLine*> vpMLs = mpMap->GetAllMapLines();
+
+    pointCloud::Ptr cloud(new pointCloud);
+    cloud->points.resize(vpMPs.size());
+    for(size_t i=0; i<cloud->size(); i++)
+    {
+        cv::Mat pos = vpMPs[i]->GetWorldPos();
+        cloud->points[i].x = pos.at<float>(0);
+        cloud->points[i].y = pos.at<float>(1);
+        cloud->points[i].z = pos.at<float>(2);
+    }
+
+    // 显示点云
+    pcl::visualization::PCLVisualizer *p(new pcl::visualization::PCLVisualizer("display the 3Dpoints"));
+    p->addPointCloud(cloud);
+    p->addCoordinateSystem();
+    p->setBackgroundColor(0.19, 0.19, 0.19);
+
+    //-- 将线段的3D端点定义为点,然后划线
+    PointT p0, p1;
+    stringstream s1;
+    for(size_t i=0; i<vpMLs.size(); i++)
+    {
+        Vector6d pos = vpMLs[i]->GetWorldPos();
+        s1 << i;
+        p0.x = pos(0);
+        p0.y = pos(1);
+        p0.z = pos(2);
+        p1.x = pos(3);
+        p1.y = pos(4);
+        p1.z = pos(5);
+        p->addLine(p0, p1, s1.str());
+    }
+
+    p->spin();
 }
-
-
+*/
 
 } //namespace ORB_SLAM

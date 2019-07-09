@@ -20,6 +20,7 @@
 
 #include "MapDrawer.h"
 #include "MapPoint.h"
+#include "MapLine.h"
 #include "KeyFrame.h"
 #include <pangolin/pangolin.h>
 #include <mutex>
@@ -33,11 +34,13 @@ MapDrawer::MapDrawer(Map* pMap, const string &strSettingPath):mpMap(pMap)
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
     mKeyFrameSize = fSettings["Viewer.KeyFrameSize"];
-    mKeyFrameLineWidth = fSettings["Viewer.KeyFrameLineWidth"];
+    mKeyFrameLineWidth = fSettings["Viewer.KeyFrameLineWidth"];  //?
     mGraphLineWidth = fSettings["Viewer.GraphLineWidth"];
     mPointSize = fSettings["Viewer.PointSize"];
     mCameraSize = fSettings["Viewer.CameraSize"];
     mCameraLineWidth = fSettings["Viewer.CameraLineWidth"];
+
+    mLineWidth = fSettings["Viewer.LineWidth"];
 
 }
 
@@ -46,7 +49,7 @@ void MapDrawer::DrawMapPoints()
 {
     //取出所有的地图点
     const vector<MapPoint*> &vpMPs = mpMap->GetAllMapPoints();
-    //取出mvpReferenceMapPoints，也即局部地图d点
+    //取出mvpReferenceMapPoints，也即局部地图点！！
     const vector<MapPoint*> &vpRefMPs = mpMap->GetReferenceMapPoints();
 
     //将vpRefMPs从vector容器类型转化为set容器类型，便于使用set::count快速统计
@@ -57,14 +60,14 @@ void MapDrawer::DrawMapPoints()
 
     // for AllMapPoints
     //显示所有的地图点（不包括局部地图点），大小为2个像素，黑色
-    glPointSize(mPointSize);
+    glPointSize(mPointSize); //点的大小2个像素
     glBegin(GL_POINTS);
-    glColor3f(0.0,0.0,0.0);
+    glColor3f(0.0,0.0,0.0);  //全0是黑色
 
     for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
     {
         // 不包括ReferenceMapPoints（局部地图点）
-        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+        if(vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i])) //如果该地图点是局部地图点则跳过
             continue;
         cv::Mat pos = vpMPs[i]->GetWorldPos();
         glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
@@ -75,7 +78,7 @@ void MapDrawer::DrawMapPoints()
     //显示局部地图点，大小为2个像素，红色
     glPointSize(mPointSize);
     glBegin(GL_POINTS);
-    glColor3f(1.0,0.0,0.0);
+    glColor3f(1.0,0.0,0.0);  //按照RGD的顺序
 
     for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
     {
@@ -86,6 +89,56 @@ void MapDrawer::DrawMapPoints()
 
     }
     glEnd();
+}
+
+
+/// --line--
+void MapDrawer::DrawMapLines()
+{
+    const vector<MapLine*> &vpMLs = mpMap->GetAllMapLines();
+    const vector<MapLine*> &vpRefMLs = mpMap->GetReferenceMapLines();
+
+    set<MapLine*> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());
+
+    if(vpMLs.empty())
+        return;
+
+    glLineWidth(mLineWidth);
+    glBegin ( GL_LINES );
+//    glColor3f(0.4, 0.35, 0.8);  //紫色
+        glColor3f(0.0,0.0,0.0);    //黑色
+
+//    cout << "vpMLs.size() = " << vpMLs.size() << endl;
+        for(size_t i=0, iend=vpMLs.size(); i<iend; i++)
+        {
+//        if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+//            continue;
+            Vector6d pos = vpMLs[i]->GetWorldPos();
+//        cout << "line = " << pos.head(3).transpose() << "\n" << pos.tail(3).transpose() << endl;
+
+            glVertex3f(pos(0), pos(1), pos(2));  //pos是vector类型不能用pos.at<float>
+            glVertex3f(pos(3), pos(4), pos(5));  //todo check这样是把直线的两个端点画出来了吗？
+
+        }
+        glEnd();
+
+        // -----画局部地图线---------------------------------
+        glLineWidth(mLineWidth);
+        glBegin ( GL_LINES );
+        glColor3f(1.0,0.0,0.0); //红色
+//    cout << "spRefMLs.size() = " << spRefMLs.size() << endl;
+
+        for(set<MapLine*>::iterator sit=spRefMLs.begin(), send=spRefMLs.end(); sit!=send; sit++)
+        {
+//        cout << "(*sit)->isBad() = " << (*sit)->isBad() << endl;
+            if((*sit)->isBad())
+                continue;
+            Vector6d pos = (*sit)->GetWorldPos();
+//        cout << "pos = " << pos.head(3).transpose() << "\n" << pos.tail(3).transpose() << endl;
+            glVertex3f(pos(0), pos(1), pos(2));
+            glVertex3f(pos(3), pos(4), pos(5));
+        }
+        glEnd();
 }
 
 //关于gl相关的函数，可直接google, 并加上msdn关键词
@@ -107,19 +160,20 @@ void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)
         {
             KeyFrame* pKF = vpKFs[i];
             //转置, OpenGL中的矩阵为列优先存储
-            cv::Mat Twc = pKF->GetPoseInverse().t();
+            cv::Mat Twc = pKF->GetPoseInverse().t();  //先求了Tcw的逆，即Twc，再求转置
 
             glPushMatrix();
 
             //（由于使用了glPushMatrix函数，因此当前帧矩阵为世界坐标系下的单位矩阵）
             //因为OpenGL中的矩阵为列优先存储，因此实际为Tcw，即相机在世界坐标下的位姿
+            // 上面这句话是wubo版本中原注释，我觉得说的有问题（max）
             glMultMatrixf(Twc.ptr<GLfloat>(0));
 
             //设置绘制图形时线的宽度
             glLineWidth(mKeyFrameLineWidth);
             //设置当前颜色为蓝色(关键帧图标显示为蓝色)
             glColor3f(0.0f,0.0f,1.0f);
-            //用线将下面的顶点两两相连
+            //用线将下面的顶点两两相连，构成一个小矩形
             glBegin(GL_LINES);
             glVertex3f(0,0,0);
             glVertex3f(w,h,z);
@@ -155,7 +209,7 @@ void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)
         glLineWidth(mGraphLineWidth);
         //设置共视图连接线为绿色，透明度为0.6f
         glColor4f(0.0f,1.0f,0.0f,0.6f);
-        glBegin(GL_LINES);
+        glBegin(GL_LINES);  //开始画线，两个点就会生成一条线！
 
         for(size_t i=0; i<vpKFs.size(); i++)
         {
@@ -262,7 +316,7 @@ void MapDrawer::SetCurrentCameraPose(const cv::Mat &Tcw)
     mCameraPose = Tcw.clone();
 }
 
-// 将相机位姿mCameraPose由Mat类型转化为OpenGlMatrix类型
+// 将相机位姿mCameraPose由Mat类型转化为OpenGlMatrix类型，引用传递
 void MapDrawer::GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M)
 {
     if(!mCameraPose.empty())

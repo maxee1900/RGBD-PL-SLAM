@@ -61,12 +61,12 @@ void Optimizer::GlobalBundleAdjustmentWithLine(Map* pMap, int nIterations, const
     if(bWithLine)
     {
         vector<MapLine*> vpML = pMap->GetAllMapLines();
-        cout << "Global BA points and lines **** " << endl;
+        cout << "Global BA with points and lines **** " << endl;
         BundleAdjustmentWithLine(vpKFs, vpMP, vpML, nIterations, pbStopFlag, nLoopKF, bRobust);
     }
     else
     {
-        cout << "Global BA points ****" << endl;
+        cout << "Global BA with points ****" << endl;
         BundleAdjustment(vpKFs,vpMP,nIterations,pbStopFlag, nLoopKF, bRobust);
     }
 }
@@ -210,7 +210,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
                 optimizer.addEdge(e);
             }
-            else// 双目或RGBD
+            else// 双目或RGBD  这里双目为啥要用三个观测呢。。线的话即使是rgbd，观测应该也二维吧
             {
                 Eigen::Matrix<double,3,1> obs;  //双目的测量有3维
                 const float kp_ur = pKF->mvuRight[mit->second];
@@ -223,8 +223,8 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
                 e->setMeasurement(obs);
                 const float &invSigma2 = pKF->mvInvLevelSigma2[kpUn.octave];
                 Eigen::Matrix3d Info = Eigen::Matrix3d::Identity()*invSigma2;
-                //todo check: 信息矩阵是3*3，invSigma2为常数，这样的话深度的观测不确定度和uv是一样的，思考对于RGBD是不是可以在这里更改！
-                //todo check: 即使对于RGBD相机，观测也只取uv两维，看看最终的结果一样吗。因为观测如果取单位的话不就跟ICP差不多了？
+                //todo_ check: 信息矩阵是3*3，invSigma2为常数，这样的话深度的观测不确定度和uv是一样的，思考对于RGBD是不是可以在这里更改！
+                //todo_ check: 即使对于RGBD相机，观测也只取uv两维，看看最终的结果一样吗。因为观测如果取单位的话不就跟ICP差不多了？
                 e->setInformation(Info);
 
                 if(bRobust)

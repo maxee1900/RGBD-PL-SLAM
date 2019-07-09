@@ -48,8 +48,14 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
     int state; // Tracking state
 
+    /// --line-- 添加的关于线的
+    vector<KeyLine> vCurrentKeyLines;   //自己添加的，当前帧的特征线
+    vector<KeyLine> vIniKeyLines;
+    vector<bool> vbLineVO, vbLineMap;
+
+
     //Copy variables within scoped mutex
-    // 步骤1：将成员变量赋值给局部变量（包括图像、状态、其它的提示）
+    // 步骤1：将成员变量赋值给局部变量（包括图像、状态、其它的提示）。明白！
     // 加互斥锁，避免与FrameDrawer::Update函数中图像拷贝发生冲突
     {
         unique_lock<mutex> lock(mMutex);
@@ -62,24 +68,35 @@ cv::Mat FrameDrawer::DrawFrame()
 
         if(mState==Tracking::NOT_INITIALIZED)
         {
+            //点特征
             vCurrentKeys = mvCurrentKeys;
             vIniKeys = mvIniKeys;
             vMatches = mvIniMatches;
+            //线特征
+            vCurrentKeyLines = mvCurrentKeyLines;
+            vIniKeyLines = mvIniKeyLines;
+            // todo 这里是不是应该添加一个 vLineMatches = mvIniLineMatches;
         }
         else if(mState==Tracking::OK)
         {
+            //点特征
             vCurrentKeys = mvCurrentKeys;
             vbVO = mvbVO;
             vbMap = mvbMap;
+            //线特征
+            vCurrentKeyLines = mvCurrentKeyLines;
+            vbLineVO = mvbLineVO;
+            vbLineMap = mvbLineMap;
         }
         else if(mState==Tracking::LOST)
         {
             vCurrentKeys = mvCurrentKeys;
+            vCurrentKeyLines = mvCurrentKeyLines;
         }
-    } // destroy scoped mutex -> release mutex
+    } // destroy scoped mutex -> release mutex 解锁，局部变量消亡
 
     if(im.channels()<3) //this should be always true
-        cvtColor(im,im,CV_GRAY2BGR);
+        cvtColor(im,im,CV_GRAY2BGR); //灰度图变成彩色图，但是怎么变得呢
 
     //Draw
     // 步骤2：绘制初始化轨迹连线，绘制特征点边框（特征点用小框圈住）
@@ -91,7 +108,7 @@ cv::Mat FrameDrawer::DrawFrame()
             if(vMatches[i]>=0)
             {
                 cv::line(im,vIniKeys[i].pt,vCurrentKeys[vMatches[i]].pt,
-                        cv::Scalar(0,255,0));
+                        cv::Scalar(0,255,0));  //绿色的连线，vMatches中放的是当前帧上特征点的索引
             }
         }
     }
@@ -105,11 +122,11 @@ cv::Mat FrameDrawer::DrawFrame()
         const int n = vCurrentKeys.size();
         for(int i=0;i<n;i++)
         {
-            if(vbVO[i] || vbMap[i])
+            if(vbVO[i] || vbMap[i])  //是VO map point / Map map point
             {
                 //在特征点附近正方形选择四个点
                 cv::Point2f pt1,pt2;
-                pt1.x=vCurrentKeys[i].pt.x-r;
+                pt1.x=vCurrentKeys[i].pt.x-r; //r可能指的是像素吧
                 pt1.y=vCurrentKeys[i].pt.y-r;
                 pt2.x=vCurrentKeys[i].pt.x+r;
                 pt2.y=vCurrentKeys[i].pt.y+r;
@@ -119,7 +136,7 @@ cv::Mat FrameDrawer::DrawFrame()
                 if(vbMap[i])
                 {
                     // 通道顺序为bgr，地图中MapPoints用绿色圆点表示，并用绿色小方框圈住
-                    cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0));
+                    cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0)); //p1p2是方框的对角线位置
                     cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(0,255,0),-1);
                     mnTracked++;
                 }
@@ -128,24 +145,27 @@ cv::Mat FrameDrawer::DrawFrame()
                     // 通道顺序为bgr，仅当前帧能观测到的MapPoints用蓝色圆点表示，并用蓝色小方框圈住
                     cv::rectangle(im,pt1,pt2,cv::Scalar(255,0,0));
                     cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);
-                    mnTrackedVO++;
+                    mnTrackedVO++;  //蓝色的是VO形成的临时地图点
                 }
             }
         }
     }
 
-    cv::Mat imWithInfo;
-    DrawTextInfo(im,state, imWithInfo);
+    //绘制特征线
+    drawKeylines(im, vCurrentKeyLines, im, Scalar(200,0,0));  //第二个参数为特征线的列表，把所有的线一次性画出
 
-    return imWithInfo;
+    cv::Mat imWithInfo;
+    DrawTextInfo(im, state, imWithInfo);  //这里是显示文本信息
+
+    return imWithInfo;  //返回的是Mat类型
 }
 
 
 void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
 {
-    stringstream s;
+    stringstream s;  //这里定义字符串的输入输出流
     if(nState==Tracking::NO_IMAGES_YET)
-        s << " WAITING FOR IMAGES";
+        s << " WAITING FOR IMAGES";  //这里可以看出是输出流
     else if(nState==Tracking::NOT_INITIALIZED)
         s << " TRYING TO INITIALIZE ";
     else if(nState==Tracking::OK)
@@ -154,11 +174,15 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
             s << "SLAM MODE |  ";
         else
             s << "LOCALIZATION | ";
+
         int nKFs = mpMap->KeyFramesInMap();
         int nMPs = mpMap->MapPointsInMap();
-        s << "KFs: " << nKFs << ", MPs: " << nMPs << ", Matches: " << mnTracked;
+        // todo 增加 int nMLs = mpMap->MapLinesInMap();
+
+        s << "KFs: " << nKFs << ", MPs: " << nMPs << ", Matches: " << mnTracked; //todo 这里也修改
         if(mnTrackedVO>0)
             s << ", + VO matches: " << mnTrackedVO;
+            //其实这里都是指的是追踪的点，我们也可以考虑将线加进去！
     }
     else if(nState==Tracking::LOST)
     {
@@ -172,6 +196,7 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
     int baseline=0;
     cv::Size textSize = cv::getTextSize(s.str(),cv::FONT_HERSHEY_PLAIN,1,1,&baseline);
 
+    //这一部分不管了，不用改
     imText = cv::Mat(im.rows+textSize.height+10,im.cols,im.type());
     im.copyTo(imText.rowRange(0,im.rows).colRange(0,im.cols));
     imText.rowRange(im.rows,imText.rows) = cv::Mat::zeros(textSize.height+10,im.cols,im.type());
@@ -179,6 +204,8 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
 
 }
 
+
+/// 用追踪线程中当前帧的各种信息来更新FrameDrawer类中的数据成员
 //将跟踪线程的数据拷贝到绘图线程（图像、特征点、地图、跟踪状态）
 void FrameDrawer::Update(Tracking *pTracker)
 {
@@ -193,22 +220,33 @@ void FrameDrawer::Update(Tracking *pTracker)
     //mbOnlyTracking等于false表示正常VO模式（有地图更新），mbOnlyTracking等于true表示用户手动选择定位模式
     mbOnlyTracking = pTracker->mbOnlyTracking;
 
+    /// --line--
+    mvCurrentKeyLines = pTracker->mCurrentFrame.mvKeylinesUn;   //自己添加的
+    NL = mvCurrentKeyLines.size();  //自己添加的
+    mvbLineVO = vector<bool>(NL, false);
+    mvbLineMap = vector<bool>(NL, false);
+
 
     if(pTracker->mLastProcessedState==Tracking::NOT_INITIALIZED)
     {
         mvIniKeys=pTracker->mInitialFrame.mvKeys;
-        mvIniMatches=pTracker->mvIniMatches;
+        mvIniMatches=pTracker->mvIniMatches;  //这个数据成员Tracker中已经写好了
+        // --line--
+        mvIniKeyLines = pTracker->mInitialFrame.mvKeylinesUn;
+        // 这里没有写mvIniLineMatches
     }
     else if(pTracker->mLastProcessedState==Tracking::OK)
     {
+        // Point Features
         for(int i=0;i<N;i++)
         {
+
             MapPoint* pMP = pTracker->mCurrentFrame.mvpMapPoints[i];
             if(pMP)
             {
                 if(!pTracker->mCurrentFrame.mvbOutlier[i])
                 {
-                    //该mappoints可以被多帧观测到，则为有效的地图点
+                    //该mappoints可以被多帧观测到，则为有效的地图点，不会是生成的临时地图点
                     if(pMP->Observations()>0)
                         mvbMap[i]=true;
                     else
@@ -216,7 +254,26 @@ void FrameDrawer::Update(Tracking *pTracker)
                 }
             }
         }
+
+        // Line Features
+        for(int j=0; j<NL; j++)
+        {
+            MapLine *pML = pTracker->mCurrentFrame.mvpMapLines[j];
+            if(pML)
+            {
+                if(!pTracker->mCurrentFrame.mvbLineOutlier[j])
+                {
+
+                    if(pML->Observations()>0)
+                        mvbLineMap[j] = true;
+                    else
+                        mvbLineMap[j] = false;
+                }
+            }
+        }
+
     }
+
     mState=static_cast<int>(pTracker->mLastProcessedState);
 }
 

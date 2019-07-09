@@ -53,6 +53,13 @@ void Map::AddMapPoint(MapPoint *pMP)  //向地图中添加点仅仅是把该地�
     mspMapPoints.insert(pMP);
 }
 
+//// line
+void Map::AddMapLine(MapLine *pML) {
+    unique_lock<mutex> lock(mMutexMap);
+    mspMapLines.insert(pML);
+}
+
+
 /**
  * @brief Erase MapPoint from the map
  * @param pMP MapPoint
@@ -62,9 +69,17 @@ void Map::EraseMapPoint(MapPoint *pMP)
     unique_lock<mutex> lock(mMutexMap);
     mspMapPoints.erase(pMP);
 
-    // TODO: This only erase the pointer.  啥意思，不改的根ORB中保持一致
+    // TODO: This only erase the pointer.  啥意思，不改跟ORB中保持一致
     // Delete the MapPoint
 }
+
+//// line
+void Map::EraseMapLine(MapLine *pML)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mspMapLines.erase(pML);
+}
+
 
 /**
  * @brief Erase KeyFrame from the map
@@ -89,7 +104,13 @@ void Map::SetReferenceMapPoints(const vector<MapPoint *> &vpMPs)
     mvpReferenceMapPoints = vpMPs; //传入地图类中的数据成员即可
 }
 
-//----在吴博注释版上增加的---------------
+//// line
+/// 设置参考MapLines，将用于DrawMapLines函数画图。 不懂，为啥没有SetReferenceMapPoints
+void Map::SetReferenceMapLines(const std::vector<MapLine *> &vpMLs)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mvpReferenceMapLines = vpMLs;
+}
 
 void Map::InformNewBigChange()
 {
@@ -102,8 +123,6 @@ int Map::GetLastBigChangeIdx()  //返回BigChange的个数
     unique_lock<mutex> lock(mMutexMap);
     return mnBigChangeIdx;
 }
-//--止------------------------------------
-
 
 
 vector<KeyFrame*> Map::GetAllKeyFrames()
@@ -118,12 +137,27 @@ vector<MapPoint*> Map::GetAllMapPoints()
     return vector<MapPoint*>(mspMapPoints.begin(),mspMapPoints.end());  //set转换为vector
 }
 
+//// line
+vector<MapLine*> Map::GetAllMapLines()
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return vector<MapLine*> ( mspMapLines.begin(), mspMapLines.end());
+}
+
 //函数返回：地图中点的数量
 long unsigned int Map::MapPointsInMap()
 {
     unique_lock<mutex> lock(mMutexMap);
     return mspMapPoints.size();
 }
+
+//// line   todo 在双目初始化中要用到
+long unsigned int Map::MapLinesInMap()  //单目初始化中用到
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return mspMapLines.size();
+}
+
 
 //函数返回地图中关键帧的数量
 long unsigned int Map::KeyFramesInMap()
@@ -138,6 +172,14 @@ vector<MapPoint*> Map::GetReferenceMapPoints()
     unique_lock<mutex> lock(mMutexMap);
     return mvpReferenceMapPoints;
 }
+
+//// line
+vector<MapLine*> Map::GetReferenceMapLines()
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return mvpReferenceMapLines;
+}
+
 
 //函数返回：地图中关键帧的最大ID号
 long unsigned int Map::GetMaxKFid()
@@ -164,45 +206,6 @@ void Map::clear()
     mvpReferenceMapPoints.clear();
     mvpReferenceMapLines.clear();
     mvpKeyFrameOrigins.clear();
-}
-
-
-//-----line 相关函数实现------------------
-
-void Map::AddMapLine(MapLine *pML)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    mspMapLines.insert(pML);
-}
-
-void Map::EraseMapLine(MapLine *pML)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    mspMapLines.erase(pML);
-}
-
-void Map::SetReferenceMapLines(const std::vector<MapLine *> &vpMLs)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    mvpReferenceMapLines = vpMLs;
-}
-
-vector<MapLine*> Map::GetAllMapLines()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return vector<MapLine*> ( mspMapLines.begin(), mspMapLines.end());
-}
-
-vector<MapLine*> Map::GetReferenceMapLines()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return mvpReferenceMapLines;
-}
-
-long unsigned int Map::MapLinesInMap()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return mspMapLines.size();
 }
 
 

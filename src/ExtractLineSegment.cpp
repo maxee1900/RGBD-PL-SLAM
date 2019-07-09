@@ -10,9 +10,12 @@ namespace ORB_SLAM2
     // construct fun
     LineSegment::LineSegment() {}
 
-void ExtractLineSegment(const Mat& img, vector<KeyLine> &keylines, Mat &ldesc, vector<Vector3d> &keylineFunctions, int scale=1.2, int numOctaves=1)
+void LineSegment::ExtractLineSegment(const Mat& img, vector<KeyLine> &keylines, Mat &ldesc, vector<Vector3d> &keylineFunctions, int scale, int numOctaves )
+// 注意函数中的参数一般在声明的时候赋初始值，写定义的时候不要加初始值
 {
-    /*
+#if 0
+
+        // detect line features
     Ptr<BinaryDescriptor> lbd = BinaryDescriptor::createBinaryDescriptor();
     Ptr<line_descriptor::LSDDetectorC> lsd = line_descriptor::LSDDetectorC::createLSDDetectorC();
 
@@ -28,15 +31,14 @@ void ExtractLineSegment(const Mat& img, vector<KeyLine> &keylines, Mat &ldesc, v
     opts.min_length = 0.025;
 
     lsd->detect(img, keylines, scale, 1, opts);
-
-     //这段代码用来设置LSD中的参数
-     */
+    // todo 直线的提取要不要也分层提取呢
+#endif
 
     Ptr<BinaryDescriptor> lbd = BinaryDescriptor::createBinaryDescriptor();
     Ptr<line_descriptor::LSDDetector> lsd = line_descriptor::LSDDetector::createLSDDetector();
     lsd->detect(img, keylines, scale, numOctaves);
 
-    unsigned int lsdNFeatures = 40;
+    unsigned int lsdNFeatures = 50;  //这里我将原来的40改为了50
 
     //filter lines
     if(keylines.size() > lsdNFeatures)
@@ -47,7 +49,7 @@ void ExtractLineSegment(const Mat& img, vector<KeyLine> &keylines, Mat &ldesc, v
             keylines[i].class_id = i;
     }
 
-    lbd->compute(img, keylines, ldesc);
+    lbd->compute(img, keylines, ldesc);  //opencv
 
     // 计算线段所在直线系数
     for(vector<KeyLine>::iterator it=keylines.begin(); it!=keylines.end(); ++it)
@@ -70,6 +72,7 @@ void LineSegment::LineSegmentMathch(Mat &ldesc1, Mat &ldesc2)
 {
     BFMatcher bfm(NORM_HAMMING, false);
     bfm.knnMatch(ldesc1, ldesc2, mvlineMatches, 2);  //这个函数的输出就是类的数据成员line_matches
+    //程序中直线的匹配都是用的knnmatch
 }
 
 // 计算中位数绝对偏差，衡量样本数据的差异性
