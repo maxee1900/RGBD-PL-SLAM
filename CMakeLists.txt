@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(ORB_SLAM2)
 
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release)
-ENDIF()
+
+SET(CMAKE_BUILD_TYPE Release)
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
@@ -63,7 +62,6 @@ src/PnPsolver.cpp
 src/Frame.cpp
 src/KeyFrameDatabase.cpp
 src/Sim3Solver.cpp
-src/Initializer.cpp
 src/Viewer.cpp
 
 #add 库中增加了三个源文件
@@ -82,29 +80,10 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 #  ${PROJECT_SOURCE_DIR/Thirdparty/line_descriptor/lib/liblinedesc.so}     #如果用第三方库中的直线描述子 改动两个地方：一个是包含头文件一个是连接库文件
 )
 
-#程序直接在吴博注释版本上改成line的程序 涉及到单目或者双目的内容 全部注释掉
-
-#这里和原版orbslam程序不一样了 生成的可执行文件在项目文件下build下
-#add_executable(mono_kitti Examples/Monocular/mono_kitti.cc)
-#target_link_libraries(mono_kitti ${PROJECT_NAME} )
 
 
-#add_executable(stereo_kitti Examples/Stereo/stereo_kitti.cpp)
-#target_link_libraries(stereo_kitti ${PROJECT_NAME})
-
-#add_executable(stereo_EuRoC Examples/Stereo/stereo_EuRoC.cpp)
-#target_link_libraries(stereo_EuRoC ${PROJECT_NAME})
-
-#这里生成的可执行文件在build目录下
 add_executable(rgbd_tum Examples/RGB-D/rgbd_tum.cc)
 target_link_libraries(rgbd_tum ${PROJECT_NAME})
-
-
-# Build tools.
-#bin_vocabulary这个可执行文件就是用来生成ORBvoc.bin的代替ORBvoc.txt 运行的时候直接替换即可
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Vocabulary)
-add_executable(bin_vocabulary Vocabulary/bin_vocabulary.cpp)
-target_link_libraries(bin_vocabulary ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so ${OpenCV_LIBS})
 
 
 
