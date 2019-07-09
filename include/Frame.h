@@ -43,26 +43,23 @@ namespace ORB_SLAM2
 
 class MapPoint;
 class KeyFrame;
+class MapLine;
 
 class Frame
 {
 
-//***********************************************
+//*******************************************************************
 public:
     Frame();
 
     // Copy constructor. 拷贝构造函数
     Frame(const Frame &frame);
 
-    // Constructor for stereo cameras.
-    Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);   //thDepth是远近点的分界线
 
     /// Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
-    //todo 按照这个逻辑，构造函数中不传入直线提取器吗？
-
-    // Constructor for Monocular cameras.
-    Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+    //todo 按照这个逻辑，构造函数中不传入直线提取器吗？ 这里可以检查
+    // ：传入点提取器是要获得点提取器的很多参数，不传入直线提取器好像也可以，只要保证每帧图像都会提取线就可以
 
     // Extract ORB on the image. 0 for left image and 1 for right image.
     // 提取的关键点存放在mvKeys和mDescriptors中
@@ -72,9 +69,6 @@ public:
     //--line---
     void ExtractLSD(const cv::Mat &im);
 
-    //--line--
-    // 计算线特征端点的3D坐标，自己添加的
-    void ComputeLine3D(Frame &frame1, Frame &frame2);  //为什么传入两个帧？
 
     //--line--
     // 自己添加的，计算线特征描述子MAD
@@ -109,7 +103,7 @@ public:
     // 判断路标点是否在帧的视野中
     bool isInFrustum(MapPoint* pMP, float viewingCosLimit);
 
-    //---line---
+    //---line---  这里判断的是两个端点都在当前帧上？
     bool isInFrustum(MapLine* pML, float viewingCosLimit);
 
 
@@ -119,20 +113,18 @@ public:
     vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel=-1, const int maxLevel=-1) const;
 
     ///---line--- 这个函数要好好注意了！
-    vector<size_t> GetLinesInArea(const float &x1, const float &y1, const float &x2, const float &y2,
-                                  const float &r, const int minLevel=-1, const int maxLevel=-1) const;
-    //参数变化为传入的坐标变为了四个
+    vector<size_t> GetLinesInArea(const float &x1, const float &y1, const float &x2, const float &y2, const float &r, const int minLevel=-1, const int maxLevel=-1) const;
 
-
-    // Search a match for each keypoint in the left image to a keypoint in the right image.
-    // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
-    void ComputeStereoMatches();  ///RGBD相机会用到吗
 
     // Associate a "right" coordinate to a keypoint if there is valid depth in the depthmap.
     void ComputeStereoFromRGBD(const cv::Mat &imDepth);  ///重要
 
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);  //i可能是keypoint的索引吧
+
+    cv::Mat UnprojectStereoLine(const int &i);  //第i个特征线的两个端点反投影
+    cv::Mat UnprojectStereoLineStart(const int &i);
+    cv::Mat UnprojectStereoLineEnd(const int &i);
 
 
 //********************************************************
@@ -205,20 +197,24 @@ public:   //以下的数据成员，其他类的函数可能会访问，所以�
     /// MapPoints associated to keypoints, NULL pointer if no association.
     // 每个特征点对应的MapPoint
     std::vector<MapPoint*> mvpMapPoints;
-
     // Flag to identify outlier associations. 是否为外点的标识
     // 观测不到Map中的3D点
     std::vector<bool> mvbOutlier;
 
 
-    //---line--- 对于线同样具有上面的很多属性
-    std::vector<KeyLine> mvKeylinesUn;
-    //todo 提取线特征时图像去畸变的操作在哪里？
-    vector<bool> mvbLineOutlier;
-    Mat mLdesc; //每一行表示一个特征线的描述子，等价于mDescriptors
+    ///---line--- 对于线同样具有上面的很多属性
+    std::vector<KeyLine> mvKeylines;   //原始左图像上提取的特征线
+    std::vector<KeyLine> mvKeylinesUn;  //校正特征线的两个端点后，得到的特征线
+    std::vector<float> mvuRightLineStart;  //根据特征线起点的深度得到起点右目坐标
+    std::vector<float> mvuRightLineEnd;    //特征线终点的右目坐标
+    std::vector<float> mvDepthLineStart;   //特征线起点的深度
+    std::vector<float> mvDepthLineEnd;     //特征线终点的深度
+    //todo_ 提取线特征时图像去畸变的操作在哪里？
+
+    cv::Mat mLdesc; //每一行表示一个特征线的描述子，等价于mDescriptors
     vector<Vector3d> mvKeyLineFunctions; //每个特征线的直线系数
     vector<MapLine*> mvpMapLines;  //与地图线的关联
-    //---止---
+    vector<bool> mvbLineOutlier;
 
 
     // Keypoints are assigned to cells in a grid to reduce matching complexity when projecting MapPoints.
@@ -268,6 +264,7 @@ private:
     // (called in the constructor).
     // 这些都是在构造函数中会调用的工具函数
     void UndistortKeyPoints();
+    void UndistortKeyLines();
 
     // Computes image bounds for the undistorted image (called in the constructor).
     void ComputeImageBounds(const cv::Mat &imLeft);

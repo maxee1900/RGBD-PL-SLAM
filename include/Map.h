@@ -91,7 +91,8 @@ public:
 protected:
     std::set<MapPoint*> mspMapPoints; ///< MapPoints
     //--line--
-    std::set<MapLine*> mspMapLines;
+    std::set<MapLine*> mspMapLines;  ///< MapLines
+
     std::set<KeyFrame*> mspKeyFrames; ///< Keyframs
 
     std::vector<MapPoint*> mvpReferenceMapPoints;

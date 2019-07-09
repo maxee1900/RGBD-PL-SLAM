@@ -21,6 +21,7 @@ using namespace cv;
 using namespace cv::line_descriptor;
 using namespace Eigen;
 
+
 namespace ORB_SLAM2
 {
 class KeyFrame;
@@ -55,10 +56,11 @@ public:
     vector<double> sigma_list;  //每个观测值的sigma尺度
 
     /// 类比ORB-SLAM
-    MapLine(const Vector6d &Pos, KeyFrame* pRefKF, Map* pMap);
     // 关键帧创建MapLine, 原orb中第一个参数是Mat类型
-    MapLine(const Vector6d &Pos, Map* pMap, Frame* pFrame, const int &idxF);
+    MapLine(const Vector6d &Pos, KeyFrame* pRefKF, Map* pMap);
     // 普通帧创建MapLine
+    MapLine(const Vector6d &Pos, Map* pMap, Frame* pFrame, const int &idxF);
+
 
     void SetWorldPos(const Vector6d &Pos);
     Vector6d GetWorldPos();  // 这两处ORB中Pos都是用Mat类型
@@ -78,7 +80,7 @@ public:
     void SetBadFlag();
     bool isBad();
 
-    void Replace(MapPoint* pML);
+    void Replace(MapLine* pML);
     MapLine* GetReplaced();
 
     void IncreaseVisible(int n=1);
@@ -150,7 +152,7 @@ public:
     static std::mutex mGlobalMutex;
 
 //**********************************************************************
-protected:
+public:  //这里我将protected修改为了public
 
     // position in absolute coordinates
     Vector6d mWorldPos;  //这个变量到底指的是？？ todo，中点在世界坐标系下的坐标但是不应该为3d吗

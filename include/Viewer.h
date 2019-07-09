@@ -46,6 +46,8 @@ public:
     // frame. Drawing is refreshed according to the camera fps. We use Pangolin.
     void Run();
 
+    void RunWithLine();  //重写上面的Run函数
+
     void RequestFinish();
 
     void RequestStop();

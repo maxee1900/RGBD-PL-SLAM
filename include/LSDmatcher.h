@@ -28,8 +28,13 @@ namespace ORB_SLAM2
         //construct
         LSDmatcher(float nnratio=0.6, bool checkOri=true);  //参数对应两个数据成员
 
-        // 对上一帧的特征线进行追踪
-        int SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame); //输出是修改当前帧的数据成员，上一帧不改动
+        // 对上一帧的特征线进行追踪，和ORB中对比少了一个参数 const float th
+        int SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th=3, const bool bMono=false ); //输出是修改当前帧的数据成员，上一帧不改动
+
+        // 对关键帧和当前帧做线匹配
+        int SearchByProjection(KeyFrame *pKF, Frame &F, std::vector<MapLine*> &vpMapLineMatches);
+
+
 
         // 通过投影，对Local MapLine进行跟踪
         int SearchByProjection(Frame &F, const std::vector<MapLine*> &vpMapLines, const float th=3);
@@ -37,14 +42,26 @@ namespace ORB_SLAM2
 
         static int DescriptorDistance(const Mat &a, const Mat &b);
 
-        // todo 这个是不是只有单目才会有
-        int SerachForInitialize(Frame &InitialFrame, Frame &CurrentFrame, vector<pair<int,int>> &LineMatches);
+        // 严格比对ORB的话，这里应该写一个当前帧与关键帧之间的匹配函数，用于重定位，暂就不写了
+        // Project MapPoints seen in KeyFrame into the Frame and search matches.
+        // Used in relocalisation (Tracking)
+//        int SearchByProjection(Frame &CurrentFrame, KeyFrame* pKF, const std::set<MapPoint*> &sAlreadyFound, const float th, const int ORBdist);
 
-        //
-        int SerachForInitialize(Frame &InitialFrame, Frame &CurrentFrame, vector<pair<int,int>> &LineMatches);
+        // 这个函数应该是单目初始化的时候才会用到
+//        int SerachForInitialize(Frame &InitialFrame, Frame &CurrentFrame, vector<pair<int,int>> &LineMatches);
+
+        // 这个函数在生成地图线的时候会用到
+        int SearchForTriangulation(KeyFrame *pKF1, KeyFrame *pKF2, vector<pair<size_t, size_t>> &vMatchedPairs, const bool bOnlyStereo);
+        // 我加了第三个参数const bool bOnlyStereo
 
         // Project MapLines into KeyFrame and search for duplicated MapLines
         int Fuse(KeyFrame* pKF, const vector<MapLine *> &vpMapLines);
+
+        // ORB中写法如下，会多一个参数const float th
+        // Project MapPoints into KeyFrame and search for duplicated MapPoints.
+        // int Fuse(KeyFrame* pKF, const vector<MapPoint *> &vpMapPoints, const float th=3.0);
+
+        // SearchBySim3 以及涉及闭环带尺度的Fuse函数等，也就是说闭环策略都是沿用ORBSLAM
 
     public:
         static const int TH_LOW;

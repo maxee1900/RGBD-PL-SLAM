@@ -23,6 +23,7 @@
 
 #include"Map.h"
 #include"MapPoint.h"
+#include "MapLine.h"
 #include"KeyFrame.h"
 #include<pangolin/pangolin.h>
 
@@ -39,6 +40,7 @@ public:
     Map* mpMap;
 
     void DrawMapPoints();
+    void DrawMapLines();  // --line--
     void DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph);
     void DrawCurrentCamera(pangolin::OpenGlMatrix &Twc);
     void SetCurrentCameraPose(const cv::Mat &Tcw);
@@ -53,6 +55,8 @@ private:
     float mPointSize;
     float mCameraSize;
     float mCameraLineWidth;
+
+    float mLineWidth;  //线的尺寸
 
     cv::Mat mCameraPose;
 

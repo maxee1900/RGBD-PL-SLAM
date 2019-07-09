@@ -42,7 +42,7 @@ struct compare_descriptor_by_NN12_dist
     }
 };
 
-// 按描述子之间的距离从小到大排序？ 这里存疑，可能是按描述子左匹配的序号进行排序
+// todo 按描述子之间的距离从小到大排序？ 这里存疑，可能是按描述子左匹配的序号进行排序，这个地方需要检查，找用到这个函数的地方
 struct sort_descriptor_by_queryIdx
 {
     inline bool operator()(const vector<DMatch>& a, const vector<DMatch>& b){
@@ -50,7 +50,20 @@ struct sort_descriptor_by_queryIdx
     }
 };
 
-//按照直线的响应排序直线特征
+
+struct compare_by_maxDepth  //这里写成bool compare_by_maxDepth()函数不行吗 测试 TODO
+{
+    inline bool operator() (const pair<pair<float,float>, int>& a, const pair<pair<float,float>, int>& b)
+    {
+        float aDepthMax = max(a.first.first, a.first.second);
+        float bDepthMax = max(b.first.first, b.first.second);
+
+        return aDepthMax < bDepthMax;   //按照升序排列
+
+    }
+};
+
+//按照直线的响应排序直线特征，直线的相响应是什么概念？
 struct sort_lines_by_response
 {
     inline bool operator() (const KeyLine& a, const KeyLine& b) {
@@ -58,7 +71,7 @@ struct sort_lines_by_response
     }
 };
 
-inline Mat SkewSymmetricMatrix(const cv::Mat &v)  //传入的v为向量
+inline Mat SkewSymmetricMatrix(const cv::Mat &v)  //传入的v为向量，此函数也没有用到呢，主要是人家ORB中convert类里有
 {
     return (
             cv::Mat_<float>(3, 3)
@@ -76,7 +89,7 @@ inline Mat SkewSymmetricMatrix(const cv::Mat &v)  //传入的v为向量
  * @param residues
  * @return
  */
-inline double vector_mad(vector<double> residues)
+inline double vector_mad(vector<double> residues) //这个函数在单目初始化的时候会用到，RGBD没有，暂时保留着
 {
     if(residues.size() != 0)
     {

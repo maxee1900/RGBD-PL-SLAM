@@ -36,7 +36,7 @@ namespace ORB_SLAM2
  * orb中以cv::Mat为基本存储结构，到g2o和Eigen需要一个转换
  * 这些转换都很简单，整个文件可以单独从orbslam里抽出来而不影响其他功能
  */
-class Converter
+class Converter  //这个类不做任何修改
 {
 public:
     /**

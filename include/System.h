@@ -39,6 +39,13 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"       //有前向声明。 为了避免错误可以即包含头文件又有前向声明！
 
+#include <pcl/common/common_headers.h>
+using namespace cv::line_descriptor;
+//KeyLine所在的名字空间：cv::line_descriptor::KeyLine; 因此记得把直线的名字空间加上
+
+//包含直线相关库
+#include <opencv2/line_descriptor/descriptor.hpp>
+
 namespace ORB_SLAM2
 {
 
@@ -67,10 +74,6 @@ public:
     // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads. 构造函数的声明，在类的源文件中写实现
     System(const string &strVocFile, const string &strSettingsFile, const eSensor sensor, const bool bUseViewer = true);
 
-    // Proccess the given stereo frame. Images must be synchronized and rectified.
-    // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
-    // Returns the camera pose (empty if tracking fails).
-    cv::Mat TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp);
 
     // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
     // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
@@ -78,15 +81,13 @@ public:
     // Returns the camera pose (empty if tracking fails).
     cv::Mat TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp);
 
-    // Proccess the given monocular frame
-    // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
-    // Returns the camera pose (empty if tracking fails).
-    cv::Mat TrackMonocular(const cv::Mat &im, const double &timestamp);
+
 
     // This stops local mapping thread (map building) and performs only camera tracking.
     void ActivateLocalizationMode();  //定义这两个函数来完成定位模式和slam模式转换
     // This resumes local mapping thread and performs SLAM again.
     void DeactivateLocalizationMode();
+
 
     // Reset the system (clear map) 重新设置地图 在界面上的选项
     void Reset();
@@ -108,27 +109,14 @@ public:
     // See format details at: http://vision.in.tum.de/data/datasets/rgbd-dataset
     void SaveKeyFrameTrajectoryTUM(const string &filename);
 
-    // Save camera trajectory in the KITTI dataset format.
-    // Only for stereo and RGB-D. This method does not work for monocular.
-    // Call first Shutdown()
-    // See format details at: http://www.cvlibs.net/datasets/kitti/eval_odometry.php
-    void SaveTrajectoryKITTI(const string &filename);
 
-    /// --add--
+    /// --add-- 这两个函数，暂时还没完成后续再补充！！
     void SavePointCloud(const string &filename);
     void ShowPointCloud();
 
     // TODO: Save/Load functions
     // SaveMap(const string &filename);
     // LoadMap(const string &filename);
-
-    // --add--
-    // Information from most recent processed frame
-    // You can call this right after TrackMonocular (or stereo or RGBD)
-    int GetTrackingState();
-    std::vector<MapPoint*> GetTrackedMapPoints();
-    std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
-
 
 private:
 
@@ -182,21 +170,21 @@ private:
     bool mbActivateLocalizationMode;
     bool mbDeactivateLocalizationMode;
 
-    ///以下wubo版本中没有，但是ORBSLAM中有，这里我加上
+ /*   ///以下wubo版本中没有，但是ORBSLAM中有，这里我加上。
+    //　以下这一部分应该是没有啥用处，调试的时候可用
 
-    // Tracking state
+    // Tracking state 这是ORB中原有的
     int mTrackingState;
     std::vector<MapPoint*> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
+
     // --line--
     std::vector<MapLine*> mTrackedMapLines;
-    std::vector<cv::KeyLine> mTrackedKeyLines;
+    std::vector<KeyLine> mTrackedKeyLines;
 
-    std::mutex mMutexState;
-
-
+    std::mutex mMutexState; */
 };
 
 }// namespace ORB_SLAM
 
-#endif // SYSTEM_H
+#endif  // SYSTEM_H

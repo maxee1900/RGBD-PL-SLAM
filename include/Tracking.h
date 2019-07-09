@@ -34,7 +34,7 @@
 #include "ORBVocabulary.h"
 #include "KeyFrameDatabase.h"
 #include "ORBextractor.h"
-#include "Initializer.h"
+
 #include "MapDrawer.h"  //MapDrawer类中没有用到Tracking类
 #include "System.h"  // 在构造函数中会用到该类
 
@@ -65,10 +65,8 @@ public:
             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor);  //参数里面凡是指针变量都带了p真是好习惯
 
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
-    cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp);
-    /// 终点关注
+    /// 重点关注
     cv::Mat GrabImageRGBD(const cv::Mat &imRGB, const cv::Mat &imD, const double &timestamp);
-    cv::Mat GrabImageMonocular(const cv::Mat &im, const double &timestamp);
 
     //设置其他三个线程，实际上就是把该类中的线程指针定义了
     void SetLocalMapper(LocalMapping* pLocalMapper);  //@该类中有其他线程的指针的话可能是为了通信吧
@@ -78,13 +76,14 @@ public:
     // Load new settings
     // The focal length should be similar or scale prediction will fail when projecting points 意思fx fy相近
     // TODO: Modify MapPoint::PredictScale to take into account focal lenght
+    // 上面是ORB作者的提示，暂时不管了
     void ChangeCalibration(const string &strSettingPath);  //这个函数没用到
+
 
     // Use this function if you have deactivated local mapping and you only want to localize the camera.
     void InformOnlyTracking(const bool &flag);  //修改mbOnlyTracking = flag;
 
 
-//************************************************************************************
 public:  //Tracking类的公有数据成员
 
     // Tracking states
@@ -106,15 +105,18 @@ public:  //Tracking类的公有数据成员
     Frame mCurrentFrame;  //包含了头文件所以这里可以定义对象
     cv::Mat mImGray;  //当前帧的灰度图
 
-    // Initialization Variables (Monocular)。 RGBD相机的话这一块数据成员可以跳过
-    // 初始化时前两帧相关变量
-    std::vector<int> mvIniLastMatches;
-    std::vector<int> mvIniMatches;    // 跟踪初始化时前两帧之间的匹配
-    std::vector<cv::Point2f> mvbPrevMatched;
-    std::vector<cv::Point3f> mvIniP3D;
+    // Initialization Variables (Monocular) 单目涉及到的变量
+    /// 其中mvIniMathes mInitialFrame在FrameDrawer类中用到
+    // 初始化时前两帧相关变量,
+//    std::vector<int> mvIniLastMatches;
+    std::vector<int> mvIniMatches;  // 跟踪初始化时前两帧之间的匹配
+//    std::vector<cv::Point2f> mvbPrevMatched;
+//    std::vector<cv::Point3f> mvIniP3D;
     Frame mInitialFrame;
-    // --line--
-    vector<pair<int, int>> mvLineMatches;
+
+    // --line-- 这一部分应该只有在单目中用到，RGBD忽略
+    vector<int> mvIniLastMatchesLine;
+    vector<int> mvIniMatchesLine;
     vector<cv::Point3f> mvLineS3D;    //初始化时线段起始点的3D位置
     vector<cv::Point3f> mvLineE3D;    //初始化时线段终止点的3D位置
     vector<bool> mvbLineTriangulated; //匹配的线特征是否能够三角化
@@ -138,38 +140,30 @@ public:  //Tracking类的公有数据成员
 protected:
 
     // Main tracking function. It is independent of the input sensor.
-    void Track();   //这里不是Tracking，不是构造函数
+    void Track();
 
     /// Map initialization for stereo and RGB-D,RGBD也会调用这一函数
     void StereoInitialization();
 
-    // Map initialization for monocular
-    void MonocularInitialization();
-    void CreateInitialMapMonocular();
-    // --line--
-    void CreateInitialMapMonoWithLine();
-    //todo 思考怎么可以使得初始化的时候只用点不用线 线只是之后才用到
+    //思考单目的时候，初始化可否只用点，后面的过程的再用线
 
     void CheckReplacedInLastFrame();
     bool TrackReferenceKeyFrame();
     void UpdateLastFrame();
     bool TrackWithMotionModel();
-
     bool Relocalization();
 
     //更新局部地图 局部点 局部关键帧
     void UpdateLocalMap();
     void UpdateLocalPoints();
-    // --line--
-    void UpdateLocalLines();
+    void UpdateLocalLines();  // --line--
     void UpdateLocalKeyFrames();
 
-
-    bool TrackLocalMap();
-    void SearchLocalPoints();
     // --line--
-    bool TrackLocalMapWithLines();   //代替上个函数
-    void SearchLocalLines();    //Tracking类中有个特点，很多函数都是不带参数的
+    bool TrackLocalMapWithLines();  //代替上个函数 todo_ TrackLocalMap()用到的地方都要这个函数代替
+
+    void SearchLocalPoints();
+    void SearchLocalLines();    // --line--
 
 
     bool NeedNewKeyFrame();   //todo 加入了线之后不知道关键帧的判断是否有变化？
@@ -193,22 +187,18 @@ protected:
     // 如果是单目，在初始化的时候使用mpIniORBextractor而不是mpORBextractorLeft，
     // mpIniORBextractor属性中提取的特征点个数是mpORBextractorLeft的两倍
     ORBextractor *mpORBextractorLeft, *mpORBextractorRight;
-    ORBextractor* mpIniORBextractor;
+    ORBextractor* mpIniORBextractor;   //这两个点提取器虽然没有用到，就不删了
 
     //BoW。相当于有两个独立的信息库，要查询或者更改
     ORBVocabulary* mpORBVocabulary;
     KeyFrameDatabase* mpKeyFrameDB;
 
-    // Initalization (only for monocular)
-    // 单目初始器
-    Initializer* mpInitializer;  //todo 不知道lan版本中的单目初始化器有没有做更改
 
     //Local Map, 局部关键帧和局部地图点构成了局部地图
     KeyFrame* mpReferenceKF;
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
-    // --line--
-    std::vector<MapLine*> mvpLocalMapLines;
+    std::vector<MapLine*> mvpLocalMapLines;  // --line--
     
     // System
     System* mpSystem; //可见System和Tracking类是互相用到的,两个头文件中都是既有头文件又有前向声明
@@ -228,26 +218,24 @@ protected:
 
     // --line--
     // 两个用于纠正畸变的映射矩阵
-    Mat mUndistX, mUndistY;  //todo 这两个矩阵怎么用
+//    Mat mUndistX, mUndistY;  //todo_ 这两个矩阵怎么用，这里是lan自己添加的 ：这里我就不采取lan版本中去畸变操作了
 
     //New KeyFrame rules (according to fps)
     int mMinFrames;  //frames的id间隔最小值，来评价是否为关键帧
     int mMaxFrames;
 
-
-
     // Threshold close/far points
     // Points seen as close by the stereo/RGBD sensor are considered reliable
-    /// and inserted from just one frame. Far points requiere a match in two keyframes. 近点直接深度图中，远点由三角化得到？ todo 注意这句话，在localMapping中检查是否符合这样的思想
+    /// and inserted from just one frame. Far points requiere a match in two keyframes. 近点直接深度图中，远点由三角化得到？ todo_ 注意这句话，在localMapping中检查是否符合这样的思想 :详细研究局部地图中地图点和地图线的生成
     float mThDepth;  //近点还是远点的分界
 
     // For RGB-D inputs only. For some datasets (e.g. TUM) the depthmap values are scaled.
     float mDepthMapFactor;  //深度图的尺度因子
 
     //Current matches in frame 当前帧上的匹配数
-    int mnMatchesInliers;
+    int mnMatchesInliers;  // 点
     // --line--
-    int mnLineMatchesInliers;
+    int mnLineMatchesInliers;  // 增加了线的，todo 相应的与mnMatchesInliers用法对齐
 
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;  //上一关键帧，可见关键帧的表示都是用到指针，而帧直接表示为了Frame的对象
@@ -262,13 +250,14 @@ protected:
     bool mbRGB;  //这个变量主要是作为一种标识，在Tracking的实现文件中会多次判断以明确颜色通道的输入顺序
 
     list<MapPoint*> mlpTemporalPoints;  //地图点链式存储，方便插入删除
-    //lan版本中没有类似这个数据成员的线的操作，TODO 是不是应该加上
-    //list<MapLine*> mlpTemporalLines;
+    //lan版本中没有类似这个数据成员的线的操作，TODO_ 是不是应该加上 是的，为了RGBD相机 :是的
+    list<MapLine*> mlpTemporalLines; //todo 参考上面mlpTemporalPoints的操作做使用
 
     //Actually,以上这些数据成员都是只在Tracking类的实现文件中用到，所以可以写作private,文中写成了protected但是也没有哪个类继承Tracking啊
+    //可见，Tracking里的数据成员是非常全的，基本上和其他的库都有关联，和优化库没有关系，优化库和pnp库在Tracking.cpp中包含用来写头文件中函数的实现
 
-    ///可见，Tracking里的数据成员是非常全的，基本上和其他的库都有关联，和优化库没有关系，优化库和pnp库在Tracking.cpp中包含用来写头文件中函数的实现
 };
+
 
 } //namespace ORB_SLAM
 

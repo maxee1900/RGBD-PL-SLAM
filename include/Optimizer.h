@@ -37,13 +37,15 @@ class LoopClosing;
 class Optimizer   //Optimizer中的成员函数原来这么少，而且不需要数据成员
 {
 public:
-    //该函数在全局BA中会调用, 注意这些函数带有static，静态成员函数
+    //该函数在全局BA中会调用, 注意这些函数带有static，静态成员函数，所以这里面没有加入线的内容
     void static BundleAdjustment(const std::vector<KeyFrame*> &vpKF, const std::vector<MapPoint*> &vpMP,
                                  int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,   //迭代数、停止标识、闭环帧数量？、是否鲁棒四个参数
                                  const bool bRobust = true);
     void static GlobalBundleAdjustemnt(Map* pMap, int nIterations=5, bool *pbStopFlag=NULL,      //第一个参数为地图，后四个参数和BundleAdjustment函数一致，而且类型也是一样的
                                        const unsigned long nLoopKF=0, const bool bRobust = true);
+
     void static LocalBundleAdjustment(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);  //参数为关键帧，停止标识（即mbAbortBA），地图
+
     int static PoseOptimization(Frame* pFrame);   //因为需要改变输入参数，所以一般都是指针传递
 
     // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)    //@ 这个函数在RGBD相机时也会调用吗？ correctLoop函数中会调用
@@ -70,7 +72,7 @@ public:
     void static GlobalBundleAdjustmentWithLine(Map* pMap, int nIterations=5, const bool bWithLine=false,
                                  bool *pbStopFlag=NULL, const unsigned long nLoopKF=0, const bool bRobust = true);
 
-    // 包含线的局部BA
+    /// 因为没有考虑闭环线程，加入线主要影响的是下面这两个函数：局部BA，位姿优化
     void static LocalBundleAdjustmentWithLine(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
 
     int static PoseOptimizationWithLine(Frame* pFrame); //todo 这个函数待定，不知道有没有加入线

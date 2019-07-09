@@ -21,6 +21,10 @@
 #ifndef KEYFRAME_H
 #define KEYFRAME_H
 
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+#include <Eigen/SVD>
+
 #include "MapPoint.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
@@ -37,6 +41,7 @@
 
 using namespace cv;
 using namespace cv::line_descriptor;
+// using namespace line_descriptor;
 using namespace Eigen;
 
 namespace ORB_SLAM2
@@ -107,7 +112,14 @@ public:
 
     // KeyPoint functions
     std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r) const;
+    // line
+    std::vector<size_t> GetLineFeaturesInArea(const float &x, const float &y, const float &r) const;
+
     cv::Mat UnprojectStereo(int i);
+
+    cv::Mat UnprojectStereoLineStart(int i);
+    cv::Mat UnprojectStereoLineEnd(int i);
+
 
     // Image
     bool IsInImage(const float &x, const float &y) const;
@@ -207,11 +219,19 @@ public:
     const std::vector<float> mvDepth; // negative value for monocular points
     const cv::Mat mDescriptors;
 
-    // --line--
-    const vector<KeyLine> mvKeyLines;
+
+    ///--line KeyLines, stereo coordinate and descriptors (all associated by an indexl)
+    const vector<KeyLine> mvKeyLines;   //todo 所用到这个变量的地方改为mvKeylinesUn
+    const vector<KeyLine> mvKeyLinesUn;
+    const vector<float> mvuRightLineStart;  //特征线起点右目坐标
+    const vector<float> mvuRightLineEnd;    //特征线终点的右目坐标
+    const vector<float> mvDepthLineStart;   //特征线起点的深度
+    const vector<float> mvDepthLineEnd;     //特征线终点的深度
+    const vector<Vector3d> mvKeyLineFunctions;
     const Mat mLineDescriptors;
-    vector<Vector3d> mvKeyLineFunctions;
-    // todo 这里不像上面 存储右目坐标和深度吗 应该用吧
+    // todo_！ 这里不像上面 存储右目坐标和深度吗 要大刀阔斧的改啊！
+
+
 
     //BoW
     DBoW2::BowVector mBowVec; ///< Vector of words to represent images
@@ -220,7 +240,7 @@ public:
     // Pose relative to parent (this is computed when bad flag is activated)
     cv::Mat mTcp;
 
-    // Scale
+    // Scale Point
     const int mnScaleLevels;
     const float mfScaleFactor;
     const float mfLogScaleFactor;
@@ -284,6 +304,7 @@ protected:
     std::mutex mMutexPose;
     std::mutex mMutexConnections;
     std::mutex mMutexFeatures;
+    // todo 检查这个锁用处，思考要不要为线也写一个mMutexLineFeatures 还是只一个就够了
 };
 
 } //namespace ORB_SLAM

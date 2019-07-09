@@ -41,7 +41,7 @@ class Map;
 class LocalMapping
 {
 public:
-    LocalMapping(Map* pMap, const float bMonocular);
+    LocalMapping(Map* pMap, const bool &bMonocular);
 
     void SetLoopCloser(LoopClosing* pLoopCloser);
 
@@ -86,7 +86,7 @@ protected:
     void SearchInNeighbors();
 
     void MapLineCulling();
-    void SearchLineInNeighbors();
+    void SearchLineInNeighbors();  //这个函数仿写点的，但是没有用到检查是不是要用一下？
 
     void KeyFrameCulling();
 
@@ -116,7 +116,7 @@ protected:
 
     KeyFrame* mpCurrentKeyFrame;
 
-    std::list<MapPoint*> mlpRecentAddedMapPoints;
+    std::list<MapPoint*> mlpRecentAddedMapPoints; //点特征
 
     // --line--
     std::list<MapLine*> mlpRecentAddedMapLines; //线特征

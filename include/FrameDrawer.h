@@ -24,6 +24,7 @@
 #include "Tracking.h"
 #include "MapPoint.h"
 #include "Map.h"
+#include "MapLine.h"
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
@@ -40,7 +41,7 @@ class Viewer;
 class FrameDrawer
 {
 public:
-    FrameDrawer(Map* pMap);
+    FrameDrawer(Map* pMap); //构造函数
 
     // Update info from the last processed frame.
     void Update(Tracking *pTracker);
@@ -55,13 +56,20 @@ protected:
     // Info of the frame to be drawn
     cv::Mat mIm;
     int N;
-    vector<cv::KeyPoint> mvCurrentKeys;
+    vector<cv::KeyPoint> mvCurrentKeys;  //当前帧特征点
     vector<bool> mvbMap, mvbVO;
     bool mbOnlyTracking;
     int mnTracked, mnTrackedVO;
-    vector<cv::KeyPoint> mvIniKeys;
-    vector<int> mvIniMatches;
-    int mState;
+    vector<cv::KeyPoint> mvIniKeys;  //初始化时的特征点
+    vector<int> mvIniMatches;  //跟踪初始化时前两帧的特征点匹配
+    int mState;  //跟踪状态
+
+
+    /// --line-- 相比于原来的，增加了这四个数据成员
+    int NL;
+    vector<KeyLine> mvCurrentKeyLines;
+    vector<bool> mvbLineMap, mvbLineVO;
+    vector<KeyLine> mvIniKeyLines;  //初始化时的特征线
 
     Map* mpMap;
 
