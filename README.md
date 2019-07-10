@@ -1,6 +1,7 @@
 ## RGBD-SLAM with Point and Line Features. 
 
-This project is developed based on the famous ORB_SLAM2. There are some details to be refined if you hope it works better than the original ORB_SLAM2.  
+This project is developed based on the famous ORB_SLAM2. There are some work to do if you hope it performss better than the original ORB_SLAM2.  
+
 
 
 Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
