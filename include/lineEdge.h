@@ -1,5 +1,6 @@
 //
-// Created by lan on 18-1-12.
+// Created by lan on 18-1-12. 
+// 这是lan版本中的写法，这个头文件有重大bug，想要程序运行效果好，改这个文件吧！这里我就不更新了（max）
 //
 
 #ifndef ORB_SLAM2_LINEEDGE_H
