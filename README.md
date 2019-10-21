@@ -12,7 +12,9 @@ Vedio: [RGBD SLAM With Point and Line Guidance Features](https://www.bilibili.co
 <a href="https://www.bilibili.com/video/av71966276" target="_blank"><img src="https://github.com/maxee1900/RGBD-PL-SLAM/blob/master/PLGF_SLAM.png" 
 alt="ORB-SLAM2" width="300" height="210" border="10" /></a>
 
-Attached My Blog: https://blog.csdn.net/weixin_43795395
+
+Attached My Blog:   https://blog.csdn.net/weixin_43795395
+
 
 ## ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
