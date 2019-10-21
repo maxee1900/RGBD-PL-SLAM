@@ -9,7 +9,6 @@ Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
 --------------------------------------------this is a vedio from my paper---------------------------------------------------------
 Vedio: [RGBD SLAM With Point and Line Guidance Features](https://www.bilibili.com/video/av71966276)
 
-----------------------------------------------------------------------------------------------------------------------------------
 
 
 ## ORB-SLAM2
