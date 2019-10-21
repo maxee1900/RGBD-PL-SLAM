@@ -10,6 +10,8 @@ Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
 Vedio: [RGBD SLAM With Point and Line Guidance Features](https://www.bilibili.com/video/av71966276)
 
 ----------------------------------------------------------------------------------------------------------------------------------------
+
+
 ## ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 
