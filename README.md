@@ -6,7 +6,10 @@ This project is developed based on the famous ORB_SLAM2. There is still some wor
 
 Reference: ORB_SLAM2, pl-slam, ORB-SLAM2_with_line
 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------this is a vedio from my paper--------------------------------------------------------------
+Vedio: RGBD SLAM With Point and Line Guidance Features 
 
+----------------------------------------------------------------------------------------------------------------------------------------
 ## ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 
