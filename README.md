@@ -4,7 +4,7 @@ This project is developed based on the famous ORB_SLAM2. There is still some wor
 
 
 
---------------------------------------------this is a vedio from my paper---------------------------------------------------
+--------------------------------------------this is a vedio---------------------------------------------------
 
 Vedio: [RGBD SLAM With Point and Line Guidance Features](https://www.bilibili.com/video/av71966276)
 
