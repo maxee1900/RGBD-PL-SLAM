@@ -84,10 +84,3 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 
 add_executable(rgbd_tum Examples/RGB-D/rgbd_tum.cc)
 target_link_libraries(rgbd_tum ${PROJECT_NAME})
-
-
-
-#老子能在两周内搞定程序 然后将自己的算法加进去
-#deadline：7.14
-#任务：完成算法实验，验证算法
-#一共二十天的时间
